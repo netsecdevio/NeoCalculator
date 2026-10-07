@@ -12,7 +12,17 @@ namespace {
 using namespace vpam;
 using units::UnitId;
 using units::PrefixId;
+using Role=Value::Role;
+using TemperatureRole=units::TemperatureRole;
 constexpr unsigned kNodes=192,kDepth=16,kCalls=64,kText=2000;
+bool temperature(const Dimension& d) {
+    for(unsigned i=0;i<kDimensions;++i)if(d.powers[i]!=(i==4?1:0))return false;
+    return true;
+}
+Role linearRole(const Dimension& d){return temperature(d)?Role::TemperatureDifference:Role::Linear;}
+// Rows/columns: linear, point, difference. 3 is an undefined affine operation.
+constexpr uint8_t kAddRole[3][3]={{0,3,3},{3,3,1},{3,1,2}};
+constexpr uint8_t kSubtractRole[3][3]={{0,3,3},{3,2,1},{3,3,2}};
 bool same(const char* a,const char* b){return a && b && !std::strcmp(a,b);}
 const char* meaning(UnitId id){const auto* d=units::definition(id);return d?d->quantity:"";}
 std::string group(const std::string& s){return "("+s+")";}
@@ -95,20 +105,27 @@ struct Walker {
     bool apply(Value& a,Value b,OpKind op) {
         if(op==OpKind::Add || op==OpKind::Sub) {
             if(a.dimension!=b.dimension)return fail(Error::DimensionMismatch);
+            if(unsigned(a.role)>2 || unsigned(b.role)>2)return fail(Error::InvalidIdentity);
+            const auto role=(op==OpKind::Add?kAddRole:kSubtractRole)[unsigned(a.role)][unsigned(b.role)];
+            if(role==3)return fail(Error::AffineOperation);
+            a.role=Role(role);
             if(!same(meaning(a.meaning),meaning(b.meaning)))a.meaning=UnitId{};
         } else {
+            if(a.role==Role::TemperaturePoint || b.role==Role::TemperaturePoint)return fail(Error::AffineOperation);
             if(op==OpKind::Div) {
                 if(!checked(b))return false;
                 if(b.coefficient=="0")return fail(Error::DivisionByZero);
             }
             a.meaning=propagated(a,b,op==OpKind::Div);
             if(!combine(a.dimension,b.dimension,op==OpKind::Div?-1:1))return fail(Error::ExponentLimit);
+            a.role=linearRole(a.dimension);
         }
         const char symbol=op==OpKind::Add?'+':op==OpKind::Sub?'-':op==OpKind::Mul?'*':'/';
         a.coefficient=group(a.coefficient)+symbol+group(b.coefficient);
         return a.coefficient.size()<=kText || fail(Error::ExpressionLimit);
     }
     bool exponent(Value& a,Value b,bool root=false) {
+        if(a.role==Role::TemperaturePoint || b.role==Role::TemperaturePoint)return fail(Error::AffineOperation);
         if(!b.dimension.scalar())return fail(Error::DimensionMismatch);
         if(!checked(b))return false;
         // The closed scalar was evaluated by Giac. Read its typed rational;
@@ -122,6 +139,7 @@ struct Walker {
         int p=int(rational.num),q=int(rational.den);
         if(root){if(p<=0 || q!=1 || p>16)return fail(Error::ExponentLimit);q=p;p=1;}
         if(!power(a.dimension,p,q))return fail(Error::ExponentLimit);
+        a.role=linearRole(a.dimension);
         if(!(p==1 && q==1))a.meaning=UnitId{};
         if(p<0){Value denominator=a;if(!checked(denominator))return false;if(denominator.coefficient=="0")return fail(Error::DivisionByZero);}
         a.coefficient=root?"surd("+a.coefficient+","+std::to_string(q)+")":group(a.coefficient)+"^("+std::to_string(p)+"/"+std::to_string(q)+")";
@@ -148,15 +166,26 @@ struct Walker {
                     bool unary(OpKind op){if(op==OpKind::Sub)negative=!negative;return true;}
                     bool flush(){if(!hasTerm)return true;if(!hasSum){sum=std::move(term);hasSum=true;}else if(!w.apply(sum,std::move(term),addition))return false;hasTerm=false;return true;}
                     bool binary(OpKind op){if(inputrow::precedence(op)==1){if(!flush())return false;addition=op;}else pending=op;return true;}
-                    bool operand(const MathNode* n){Value v;if(!w.node(n,v,depth+1))return false;if(negative)v.coefficient="-("+v.coefficient+")";negative=false;if(!hasTerm){term=std::move(v);hasTerm=true;}else if(!w.apply(term,std::move(v),pending))return false;return true;}
+                    bool operand(const MathNode* n){
+                        // WHY: a scalar coordinate followed by an atomic point
+                        // unit constructs a point. Multiplying an existing point
+                        // (including Ans or a parenthesized point) never does.
+                        if(n->type()==NodeType::Unit && hasTerm && pending==OpKind::Mul && !negative && term.dimension.scalar() &&
+                           units::normalized(static_cast<const NodeUnit*>(n)->atom()).role==TemperatureRole::Absolute) {
+                            if(++w.nodes>kNodes || depth+1>kDepth)return w.fail(Error::ExpressionLimit);
+                            return w.attach(static_cast<const NodeUnit*>(n)->atom(),term);
+                        }
+                        Value v;if(!w.node(n,v,depth+1))return false;
+                        if(negative){if(v.role==Role::TemperaturePoint)return w.fail(Error::AffineOperation);v.coefficient="-("+v.coefficient+")";}
+                        negative=false;
+                        if(!hasTerm){term=std::move(v);hasTerm=true;}else if(!w.apply(term,std::move(v),pending))return false;return true;
+                    }
                 } sink{*this,depth};
                 if(!inputrow::visit(*static_cast<const NodeRow*>(n),sink) || !sink.flush())return false;
                 out=std::move(sink.sum);return true;
             }
             case NodeType::Unit: {
-                const auto a=static_cast<const NodeUnit*>(n)->atom();const auto e=admissible(a);if(e!=Error::None)return fail(e);
-                const auto* d=units::definition(a.unit);out.dimension=dimension(a);out.meaning=a.unit;
-                out.coefficient=exact(d->scale,units::prefix(a.prefix)->exponent);return true;
+                out.coefficient="1";return attach(static_cast<const NodeUnit*>(n)->atom(),out);
             }
             case NodeType::QuantityReference: {
                 const auto a=static_cast<const NodeQuantityReference*>(n)->atom();const auto* r=units::reference(a.reference);
@@ -178,7 +207,7 @@ struct Walker {
             }
             case NodeType::Paren: {
                 const auto* p=static_cast<const NodeParen*>(n);if(!child(p->content(),out))return false;
-                if(p->delimKind()==DelimKind::Bar){out.coefficient="abs("+out.coefficient+")";return checked(out);}return true;
+                if(p->delimKind()==DelimKind::Bar){if(out.role==Role::TemperaturePoint)return fail(Error::AffineOperation);out.coefficient="abs("+out.coefficient+")";return checked(out);}return true;
             }
             case NodeType::Variable: {
                 if(resolve && resolve(owner,static_cast<const NodeVariable*>(n)->name(),out))return true;
@@ -213,6 +242,7 @@ struct Walker {
                 // algebraic simplification can erase an invalid operand.
                 if(!arg || !function)return fail(Error::FunctionUnsupported);
                 if(!child(arg,out))return false;
+                if(out.role==Role::TemperaturePoint)return fail(Error::AffineOperation);
                 const bool trig=same(function,"sin") || same(function,"cos") || same(function,"tan");
                 bool radians=false;
                 if(same(function,"abs")){out.coefficient="abs("+out.coefficient+")";return checked(out);}
@@ -230,6 +260,16 @@ struct Walker {
             default:return fail(Error::FunctionUnsupported);
         }
     }
+    bool attach(units::Atom a,Value& out) {
+        const auto e=admissible(a);if(e!=Error::None)return fail(e);
+        a=units::normalized(a);const auto* d=units::definition(a.unit);
+        out.dimension=dimension(a);out.meaning=a.unit;
+        out.role=a.role==TemperatureRole::Absolute?Role::TemperaturePoint:linearRole(out.dimension);
+        const auto factor=exact(d->scale,units::prefix(a.prefix)->exponent);
+        out.coefficient=out.coefficient=="1"?factor:group(out.coefficient)+"*"+factor;
+        if(out.role==Role::TemperaturePoint && d->offset.numerator)out.coefficient+="+"+exact(d->offset);
+        return true;
+    }
 };
 std::string scale(const Descriptor& d) {
     std::string s="("+std::to_string(d.numerator)+"/"+std::to_string(d.denominator)+")";
@@ -238,6 +278,10 @@ std::string scale(const Descriptor& d) {
         s+="*"+exact(def->scale,units::prefix(t.atom.prefix)->exponent)+"^("+std::to_string(t.power)+")";
     }
     return s;
+}
+bool pointDescriptor(const Descriptor& d) {
+    return d.count==1 && d.terms[0].power==1 && d.numerator==1 && d.denominator==1 &&
+        units::normalized(d.terms[0].atom).role==TemperatureRole::Absolute;
 }
 NodePtr termNode(units::Term term,bool absolute=false) {
     auto result=makeUnit(term.atom);const int p=absolute?std::abs(int(term.power)):int(term.power);
@@ -250,12 +294,14 @@ NodePtr termNode(units::Term term,bool absolute=false) {
 
 Error admissible(units::Atom a) {
     if(!units::valid(a))return Error::InvalidIdentity;
+    a=units::normalized(a);
     const auto& d=*units::definition(a.unit);
-    if(d.conversion==units::Conversion::Affine)return Error::AffinePending;
-    if(d.conversion!=units::Conversion::Multiplicative)return Error::ContextPending;
+    if(d.conversion==units::Conversion::Affine && d.temperature==TemperatureRole::None)return Error::AffinePending;
+    if(d.conversion!=units::Conversion::Multiplicative && d.conversion!=units::Conversion::Affine)return Error::ContextPending;
     if(d.exactness==units::Exactness::Measured)return Error::UncertaintyPending;
     if(d.exactness!=units::Exactness::Exact)return Error::ApproximatePending;
-    if(d.scale.numerator<=0 || !d.scale.denominator || d.offset.numerator)return Error::InvalidIdentity;
+    if(d.scale.numerator<=0 || !d.scale.denominator || !d.offset.denominator ||
+       (d.conversion==units::Conversion::Multiplicative && d.offset.numerator))return Error::InvalidIdentity;
     return Error::None;
 }
 Dimension dimension(units::Atom a) {
@@ -298,16 +344,22 @@ bool descriptorDimension(const Descriptor& descriptor,Dimension& out) {
     Dimension next;
     for(unsigned i=0;i<descriptor.count;++i) {
         const auto& t=descriptor.terms[i];if(admissible(t.atom)!=Error::None || !t.power)return false;
+        if(units::normalized(t.atom).role==TemperatureRole::Absolute && !pointDescriptor(descriptor))return false;
         auto d=dimension(t.atom);if(!power(d,t.power,1) || !combine(next,d,1))return false;
     }
     out=next;return true;
 }
 bool compatible(const Value& value,const Descriptor& descriptor) {
-    Dimension d;return descriptorDimension(descriptor,d) && d==value.dimension;
+    Dimension d;return descriptorDimension(descriptor,d) && d==value.dimension &&
+        value.role==(pointDescriptor(descriptor)?Role::TemperaturePoint:linearRole(d));
 }
 Descriptor coherent(const Value& value) {
     Descriptor out;
     if(value.dimension.scalar())return out;
+    if(temperature(value.dimension)) {
+        out.terms[0]={{UnitId(5),PrefixId(0),value.role==Role::TemperaturePoint?TemperatureRole::Absolute:TemperatureRole::Difference},1};
+        out.count=1;return out;
+    }
     // Preserve a known named magnitude; never identify Hz with Bq or Gy with Sv.
     if(uint16_t(value.meaning))for(const auto& d:units::kDefinitions) {
         units::Atom atom{d.id,PrefixId(uint16_t(d.id)==2?10:0)};
@@ -323,12 +375,18 @@ Descriptor coherent(const Value& value) {
         const int8_t p=remaining.powers[i];units::Atom atom{UnitId(domains[i-7]),PrefixId(0)};
         out.terms[out.count++]={atom,p};auto d=dimension(atom);power(d,p,1);combine(remaining,d,-1);
     }
-    for(unsigned i=0;i<7;++i)if(remaining.powers[i])out.terms[out.count++]={{UnitId(i+1),PrefixId(i==1?10:0)},remaining.powers[i]};
+    for(unsigned i=0;i<7;++i)if(remaining.powers[i])out.terms[out.count++]={{UnitId(i+1),PrefixId(i==1?10:0),i==4?TemperatureRole::Difference:TemperatureRole::None},remaining.powers[i]};
     return out;
 }
 Error convert(const Value& value,const Descriptor& descriptor,Display& destination) {
     if(!compatible(value,descriptor))return Error::DimensionMismatch;
-    StructuredEngineResult result;const auto e=scalar(group(value.coefficient)+"/"+group(scale(descriptor)),result);
+    std::string canonical=value.coefficient;
+    if(value.role==Role::TemperaturePoint) {
+        const auto a=units::normalized(descriptor.terms[0].atom);
+        const auto& offset=units::definition(a.unit)->offset;
+        if(offset.numerator)canonical=group(canonical)+"-"+exact(offset);
+    }
+    StructuredEngineResult result;const auto e=scalar(group(canonical)+"/"+group(scale(descriptor)),result);
     if(e!=Error::None)return e;
     Display next;next.exact=result.base.exactText;next.approximate=result.base.approximateText;
     next.exactCoefficient=CalculationEngine::resultTreeToAST(result.tree,ProductNotation::ScalarNatural);
@@ -376,7 +434,7 @@ bool symbol(const Descriptor& d,char* out,size_t capacity) {
     return true;
 }
 const char* errorName(Error e) {
-    static constexpr const char* names[]={"none","incomplete","dimension_mismatch","division_by_zero","affine_pending","context_pending","uncertainty_pending","approximate_pending","symbolic_pending","complex_pending","function_unsupported","exponent_limit","expression_limit","invalid_identity","allocation","scalar_domain","reference_pending"};
+    static constexpr const char* names[]={"none","incomplete","dimension_mismatch","division_by_zero","affine_pending","context_pending","uncertainty_pending","approximate_pending","symbolic_pending","complex_pending","function_unsupported","exponent_limit","expression_limit","invalid_identity","allocation","scalar_domain","reference_pending","affine_operation"};
     return unsigned(e)<std::size(names)?names[unsigned(e)]:"invalid_identity";
 }
 const char* errorMessage(Error e,bool spanish) {
@@ -394,7 +452,8 @@ const char* errorMessage(Error e,bool spanish) {
         {"Quantity expression limit","Límite de expresión con unidades"},
         {"Invalid unit identity","Identidad de unidad inválida"},
         {"Not enough memory","Memoria insuficiente"},{"Quantity outside function domain","Cantidad fuera del dominio"},
-        {"Physical references not supported yet","Referencias físicas aún no disponibles"}};
+        {"Physical references not supported yet","Referencias físicas aún no disponibles"},
+        {"Operation undefined for temperature points","Operación no definida para puntos de temperatura"}};
     return messages[unsigned(e)<std::size(messages)?unsigned(e):unsigned(Error::InvalidIdentity)][spanish?1:0];
 }
 }

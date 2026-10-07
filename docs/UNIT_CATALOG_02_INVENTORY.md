@@ -207,7 +207,7 @@ Source: `src/math/units/registry.json`. IDs do not depend on order.
 | 1309 | tsubo | Japanese tsubo / Tsubo japonés | area | [661157, 2, -5, 0] ; offset [0, 1, 0, 0] | conventional_approximate | jetro: Hiroshima property area conversion; rounded |
 | 1310 | rai | Thai rai / Rai tailandés | area | [16, 1, 2, 0] ; offset [0, 1, 0, 0] | exact | thai_boi: 1rai1600m² |
 
-Definitions: 202. Catalogue items: 312. Insertable offered variants: 3672. Official prefixes: 24 + neutral. Typed references: 58.
+Definitions: 202. Catalogue items: 314. Insertable offered variants: 3674. Official prefixes: 24 + neutral. Typed references: 58.
 
 
 ## Typed physical references and contextual scales

@@ -29,7 +29,7 @@ for query in ('metro','metre','meter','milimetro','kilometre'):
  run('contacts-'+query,body)
 run('contacts-microsegundo',amount('2','Second',3)+keys('ENTER')+output()+all_units()+physical_text('microsegundo')+keys('DOWN')+selected(3,16)+shot('physical-search')+keys('ENTER')+check('2000000','2','3:16:1'))
 unusual=amount('1','metre',1)
-for query,item,prefix in [('Second',3,0),('kg',2,10),('Ampere',4,0),('Kelvin',5,0),('mole',6,0),('candela',7,0)]:
+for query,item,prefix in [('Second',3,0),('kg',2,10),('Ampere',4,0),('delta k',61,0),('mole',6,0),('candela',7,0)]:
  unusual+=keys('MUL')+amount('1',query,item,prefix)
 run('unusual-current',unusual+keys('ENTER')+check('1','1')+output()+'assert_calc_input unit_menu geometry\n'+shot('unusual-current')+keys('BACK')+check('1','1'))
 raise SystemExit(0 if records and all(r['passed'] for r in records.values()) else 1)

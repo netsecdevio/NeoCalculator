@@ -936,6 +936,12 @@
       "parent": 400,
       "en": "Planck references",
       "es": "Referencias de Planck"
+    },
+    {
+      "id": 263,
+      "parent": 227,
+      "en": "Temperature difference",
+      "es": "Diferencia de temperatura"
     }
   ],
   "units": [
@@ -3922,7 +3928,8 @@
       "variant": "Difference, not absolute temperature; zero offset",
       "si": "",
       "reference": "coherent SI basis (m, kg, s, A, K, mol, cd)",
-      "prefixed_symbol": "ΔK"
+      "prefixed_symbol": "ΔK",
+      "legacy_temperature_unit": 5
     },
     {
       "id": 62,
@@ -3965,7 +3972,8 @@
       "variant": "Difference, not absolute temperature; zero offset",
       "si": "",
       "reference": "coherent SI basis (m, kg, s, A, K, mol, cd)",
-      "prefixed_symbol": "Δ°C"
+      "prefixed_symbol": "Δ°C",
+      "legacy_temperature_unit": 23
     },
     {
       "id": 63,
@@ -4008,7 +4016,8 @@
       "variant": "Difference, not absolute temperature; zero offset",
       "si": "",
       "reference": "coherent SI basis (m, kg, s, A, K, mol, cd)",
-      "prefixed_symbol": "Δ°F"
+      "prefixed_symbol": "Δ°F",
+      "legacy_temperature_unit": 60
     },
     {
       "id": 64,
@@ -11957,7 +11966,13 @@
       "power": 1,
       "default_prefix": 0,
       "en": "Kelvin",
-      "es": "Kelvin"
+      "es": "Kelvin",
+      "aliases": [
+        "temperature",
+        "temperatura"
+      ],
+      "help_en": "Temperature point. Add or subtract a difference; subtract two points.",
+      "help_es": "Punto de temperatura. Suma o resta diferencias; resta dos puntos."
     },
     {
       "id": 6,
@@ -12173,7 +12188,13 @@
       "power": 1,
       "default_prefix": 0,
       "en": "Degree Celsius",
-      "es": "Grado Celsius"
+      "es": "Grado Celsius",
+      "aliases": [
+        "temperature",
+        "temperatura"
+      ],
+      "help_en": "Temperature point. Add or subtract a difference; subtract two points.",
+      "help_es": "Punto de temperatura. Suma o resta diferencias; resta dos puntos."
     },
     {
       "id": 40,
@@ -12380,34 +12401,64 @@
       "power": 1,
       "default_prefix": 0,
       "en": "Degree Fahrenheit",
-      "es": "Grado Fahrenheit"
+      "es": "Grado Fahrenheit",
+      "aliases": [
+        "temperature",
+        "temperatura"
+      ],
+      "help_en": "Temperature point. Add or subtract a difference; subtract two points.",
+      "help_es": "Punto de temperatura. Suma o resta diferencias; resta dos puntos."
     },
     {
       "id": 61,
       "unit": 61,
-      "category": 227,
+      "category": 263,
       "power": 1,
       "default_prefix": 0,
       "en": "Kelvin difference",
-      "es": "Diferencia kelvin"
+      "es": "Diferencia kelvin",
+      "aliases": [
+        "temperature difference",
+        "diferencia temperatura",
+        "diferencia de temperatura",
+        "delta k"
+      ],
+      "help_en": "Temperature difference; Delta marks an interval. No origin offset.",
+      "help_es": "Diferencia de temperatura; Delta marca un intervalo. Sin offset."
     },
     {
       "id": 62,
       "unit": 62,
-      "category": 227,
+      "category": 263,
       "power": 1,
       "default_prefix": 0,
       "en": "Celsius difference",
-      "es": "Diferencia Celsius"
+      "es": "Diferencia Celsius",
+      "aliases": [
+        "temperature difference",
+        "diferencia temperatura",
+        "diferencia de temperatura",
+        "delta c"
+      ],
+      "help_en": "Temperature difference; Delta marks an interval. No origin offset.",
+      "help_es": "Diferencia de temperatura; Delta marca un intervalo. Sin offset."
     },
     {
       "id": 63,
       "unit": 63,
-      "category": 227,
+      "category": 263,
       "power": 1,
       "default_prefix": 0,
       "en": "Fahrenheit difference",
-      "es": "Diferencia Fahrenheit"
+      "es": "Diferencia Fahrenheit",
+      "aliases": [
+        "temperature difference",
+        "diferencia temperatura",
+        "diferencia de temperatura",
+        "delta f"
+      ],
+      "help_en": "Temperature difference; Delta marks an interval. No origin offset.",
+      "help_es": "Diferencia de temperatura; Delta marca un intervalo. Sin offset."
     },
     {
       "id": 101,
@@ -14589,7 +14640,13 @@
       "default_prefix": 0,
       "en": "Degree Rankine",
       "es": "Grado Rankine",
-      "en_us": "Degree Rankine"
+      "en_us": "Degree Rankine",
+      "aliases": [
+        "temperature",
+        "temperatura"
+      ],
+      "help_en": "Temperature point. Add or subtract a difference; subtract two points.",
+      "help_es": "Punto de temperatura. Suma o resta diferencias; resta dos puntos."
     },
     {
       "id": 1181,
@@ -14599,7 +14656,13 @@
       "default_prefix": 0,
       "en": "Degree Reaumur",
       "es": "Grado Réaumur",
-      "en_us": "Degree Reaumur"
+      "en_us": "Degree Reaumur",
+      "aliases": [
+        "temperature",
+        "temperatura"
+      ],
+      "help_en": "Temperature point. Add or subtract a difference; subtract two points.",
+      "help_es": "Punto de temperatura. Suma o resta diferencias; resta dos puntos."
     },
     {
       "id": 1182,
@@ -16816,6 +16879,44 @@
       "en": "Thai rai",
       "es": "Rai tailandés",
       "en_us": "Thai rai"
+    },
+    {
+      "id": 1311,
+      "unit": 1181,
+      "category": 263,
+      "power": 1,
+      "default_prefix": 0,
+      "en": "Reaumur difference",
+      "es": "Diferencia Réaumur",
+      "temperature_role": "difference",
+      "prefix_selector": false,
+      "aliases": [
+        "temperature difference",
+        "diferencia temperatura",
+        "diferencia de temperatura",
+        "delta re"
+      ],
+      "help_en": "Temperature difference; Delta marks an interval. No origin offset.",
+      "help_es": "Diferencia de temperatura; Delta marca un intervalo. Sin offset."
+    },
+    {
+      "id": 1312,
+      "unit": 1180,
+      "category": 263,
+      "power": 1,
+      "default_prefix": 0,
+      "en": "Rankine difference",
+      "es": "Diferencia Rankine",
+      "temperature_role": "difference",
+      "prefix_selector": false,
+      "aliases": [
+        "temperature difference",
+        "diferencia temperatura",
+        "diferencia de temperatura",
+        "delta r"
+      ],
+      "help_en": "Temperature difference; Delta marks an interval. No origin offset.",
+      "help_es": "Diferencia de temperatura; Delta marca un intervalo. Sin offset."
     }
   ],
   "deferred": {

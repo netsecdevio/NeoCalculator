@@ -30,9 +30,9 @@ int main() {
         check(bool(node)==units::valid(a),"typed constructor validates every standard combination");
         if(!node)continue;
         ++variants;check(node->type()==NodeType::Unit,"identity is not a variable");
-        auto copied=cloneNode(node.get());check(static_cast<NodeUnit*>(copied.get())->atom()==a,"clone preserves identity");
+        auto copied=cloneNode(node.get());check(static_cast<NodeUnit*>(copied.get())->atom()==units::normalized(a),"clone preserves identity and role");
         uint8_t data[5]{};units::Atom restored=atom(1);
-        check(units::encode(a,data) && units::decode(data,5,restored) && restored==a,"closed machine atom roundtrip");
+        check(units::encode(a,data) && units::decode(data,5,restored) && restored==units::normalized(a),"closed machine atom roundtrip");
         std::string text,error;check(!CalculationEngine::serializeForGiac(node.get(),text,error),"unit never serializes as free identifier");
         const auto evaluated=engine.evaluate(node.get());check(quantity::admissible(a)==quantity::Error::None?evaluated.ok():evaluated.status==MathEngineStatus::UnitsUnavailable,"metadata admits exact multiplicative variants only");
         char symbol[32]{};check(units::symbol(a,symbol,sizeof(symbol)),"bounded canonical symbol");
@@ -40,7 +40,7 @@ int main() {
     }
     check(!makeUnit(atom(65535)) && !makeUnit(atom(1,25)) && !makeUnit(atom(47,10)),"corrupt and disallowed atoms rejected");
     units::Atom destination=atom(1,15);const auto before=destination;
-    const uint8_t corrupt[][5]={{0x55,2,1,0,0},{0x55,1,255,255,0},{0x55,1,1,0,25},{0x55,1,47,0,10}};
+    const uint8_t corrupt[][5]={{0x55,3,1,0,0},{0x55,1,255,255,0},{0x55,1,1,0,25},{0x55,1,47,0,10}};
     for(const auto& bytes:corrupt)
         check(!units::decode(bytes,5,destination) && destination==before,"unknown schema/ID/variant preserves destination");
     check(engine.evaluate(makeVariable(VAR_ANS).get()).exactText=="42","unit guards preserve Ans");

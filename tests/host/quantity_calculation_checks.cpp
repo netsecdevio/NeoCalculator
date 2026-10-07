@@ -57,8 +57,8 @@ int main(){
  quantity::Descriptor cm;check(quantity::descriptor(1,14,cm),"cm descriptor");quantity::Display view;
  check(quantity::convert(*q.quantity,cm,view)==quantity::Error::None && view.exact=="200","conversion from canonical");
  check(q.quantity->coefficient=="2","conversion preserves canonical");
- error(amount("1",23),quantity::Error::AffinePending);
- error(binary(number("0"),OpKind::Mul,amount("1",60)),quantity::Error::AffinePending);
+ error(binary(amount("1",23),OpKind::Add,amount("1",23)),quantity::Error::AffineOperation);
+ error(binary(number("0"),OpKind::Mul,amount("1",60)),quantity::Error::AffineOperation);
  error(amount("1",1103),quantity::Error::UncertaintyPending);
  error(binary(number("0"),OpKind::Mul,makeQuantityReference({units::ReferenceId(126),units::PrefixId(0)})),quantity::Error::ContextPending);
  // Session values own their mathematics independently of a display descriptor.
@@ -139,10 +139,11 @@ int main(){
      check(result.ok() && result.quantity && result.quantity->coefficient!="0","every admitted atomic variant computes without underflow");
    }
  }
- check(admitted==190 && atomicVariants==1918,"actual multiplicative coverage");
+ check(admitted==193 && atomicVariants==1921,"190 previous definitions and three affine scales");
  unsigned factorCases=0;
  for(const auto& oracle:factors) {
    if(quantity::admissible({units::UnitId(oracle.id),units::PrefixId(0)})!=quantity::Error::None)continue;
+   if(units::definition(units::UnitId(oracle.id))->conversion==units::Conversion::Affine)continue; // point oracles live in temperature_checks
    auto input=unit(oracle.id);auto result=CalculationEngine::instance().evaluate(input.get());
    auto expected=GiacEngine::instance().evaluateStructured((std::string(oracle.numerator)+"/"+oracle.denominator).c_str(),true);
    if(!result.ok() || !result.quantity || result.quantity->coefficient!=expected.base.exactText)std::fprintf(stderr,"oracle unit=%u expected=%s got=%s\n",oracle.id,expected.base.exactText.c_str(),result.quantity?result.quantity->coefficient.c_str():result.diagnostic.c_str());

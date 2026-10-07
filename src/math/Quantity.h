@@ -18,12 +18,16 @@ struct Dimension {
 };
 enum class Error:uint8_t {None,Incomplete,DimensionMismatch,DivisionByZero,AffinePending,
     ContextPending,UncertaintyPending,ApproximatePending,SymbolicPending,ComplexPending,
-    FunctionUnsupported,ExponentLimit,ExpressionLimit,InvalidIdentity,Allocation,ScalarDomain,ReferencePending};
+    FunctionUnsupported,ExponentLimit,ExpressionLimit,InvalidIdentity,Allocation,ScalarDomain,ReferencePending,
+    AffineOperation};
 const char* errorName(Error);
 const char* errorMessage(Error,bool spanish);
 struct Value {
     std::string coefficient; // exact scalar in the coherent reference, owned
     Dimension dimension;
+    // WHY: an immutable mathematical role; display conversions cannot change it.
+    enum class Role:uint8_t { Linear, TemperaturePoint, TemperatureDifference };
+    Role role=Role::Linear;
     units::UnitId meaning{}; // provenance only; zero means unspecified magnitude
 };
 using Owned=std::shared_ptr<const Value>;

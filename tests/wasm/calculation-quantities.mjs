@@ -149,7 +149,7 @@ try {for(const [name,type] of Object.entries({chromium,firefox,webkit})) {
   await keys('AC TOOLBOX');await el.locator('canvas').focus();await page.keyboard.type('Mach number');await keys('DOWN');await expect({id:16497});
   await keys('ENTER ENTER');assert.equal((await driver.state()).calculation.status,'units_unavailable');await shot('quantity-context');
   await keys('AC 1');await quantityPick('metre',32769);
-  for(const [query,id,prefix] of [['Second',32771,0],['kg',32770,10],['Ampere',32772,0],['Kelvin',32773,0],['mole',32774,0],['candela',32775,0]]) {
+  for(const [query,id,prefix] of [['Second',32771,0],['kg',32770,10],['Ampere',32772,0],['delta k',32829,0],['mole',32774,0],['candela',32775,0]]) {
    await keys('* 1');await quantityPick(query,id,prefix);
   }
   await keys('ENTER');await exact('1');await output();await shot('quick-wide-current');

@@ -1522,6 +1522,12 @@ bool CalculationApp::debugInput(const std::string& expected) const {
     if(expected.compare(0,19,"quantity canonical ")==0)return _quantity && _quantity->coefficient==expected.substr(19);
     if(expected.compare(0,15,"quantity error ")==0)return expected.substr(15)==numos::quantity::errorName(_quantityError);
     if(expected=="quantity none")return !_quantity;
+    if(expected.compare(0,14,"quantity role ")==0) {
+        if(!_quantity)return false;
+        using R=numos::quantity::Value::Role;
+        const char* role=_quantity->role==R::TemperaturePoint?"point":_quantity->role==R::TemperatureDifference?"difference":"linear";
+        return expected.substr(14)==role;
+    }
     if(expected.compare(0,15,"quantity terms ")==0) {
         std::string actual;
         for(unsigned i=0;i<_outputUnit.count;++i){const auto& t=_outputUnit.terms[i];if(i)actual+=",";actual+=std::to_string(unsigned(t.atom.unit))+":"+std::to_string(unsigned(t.atom.prefix))+":"+std::to_string(int(t.power));}
@@ -2033,7 +2039,8 @@ bool CalculationApp::outputAllowed(const numos::toolbox::Entry& entry) const {
     if(_unitTargetComponent<0)return quantity::compatible(*_quantity,candidate);
     if(unsigned(_unitTargetComponent)>=_outputUnit.count || candidate.count!=1 || candidate.terms[0].power!=1 ||
        candidate.numerator!=1 || candidate.denominator!=1)return false;
-    return quantity::dimension(candidate.terms[0].atom)==quantity::dimension(_outputUnit.terms[_unitTargetComponent].atom);
+    auto composed=_outputUnit;composed.terms[_unitTargetComponent].atom=candidate.terms[0].atom;
+    return quantity::compatible(*_quantity,composed);
 }
 
 void CalculationApp::openOutputSelector(int component) {

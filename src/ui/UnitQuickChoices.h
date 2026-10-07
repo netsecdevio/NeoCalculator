@@ -73,6 +73,8 @@ struct UnitQuickChoices {
         case 10:offer(10,10);offer(10);offer(10,9);break;
         case 26:offer(26,10);offer(26);offer(26,9);break;
         case 8:case 57:case 58:case 59:offer(57);offer(8);offer(58);break;
+        case 5:case 23:case 60:case 1180:case 1181:offer(5);offer(23);offer(60);break;
+        case 61:case 62:case 63:case 1311:case 1312:offer(61);offer(62);offer(63);break;
         default:break;
         }
     }

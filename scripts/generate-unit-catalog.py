@@ -60,6 +60,8 @@ def validate(data):
         assert u['conversion'] == ('affine' if u['offset'][0] else 'multiplicative') or (u['conversion']=='formula' and u.get('formula'))
         assert u['temperature_role'] in ('none','absolute','difference')
         if u['temperature_role'] == 'difference': assert u['offset'][0] == 0
+        if 'legacy_temperature_unit' in u:
+            assert u['temperature_role']=='difference' and units[u['legacy_temperature_unit']]['temperature_role']=='absolute'
         assert u['standard_prefixes'] in ('decimal','not_standardized','astronomical_as')
         assert u['offered_prefixes'] and len(set(u['offered_prefixes'])) == len(u['offered_prefixes'])
         assert all(0 <= p < 25 for p in u['offered_prefixes'])
@@ -124,6 +126,9 @@ def outputs(data):
         offered=sum(1<<p for p in u['offered_prefixes'])
         fields=['UnitId(%d)'%u['id'],*[q(u[k]) for k in ['key','symbol','prefixed_symbol','en','es']],q('|'.join(u['aliases'])),q(u['quantity']),'{'+','.join(map(str,u['dimension']))+'}',exact(u['scale']),exact(u['offset']),str(mask)+'U',str(offered)+'U','Conversion::'+cpp_enum(u['conversion']),'TemperatureRole::'+cpp_enum(u['temperature_role']),*[q(u[k]) for k in ['source','location','variant']],'Exactness::'+cpp_enum(u['exactness']),q(u.get('domain','si')),q(u.get('uncertainty_decimal',u.get('uncertainty_note',''))),q(u.get('formula',''))]
         lines.append('{'+','.join(fields)+'},')
+    lines+=['};','struct TemperatureAlias { UnitId legacy, unit; };','inline constexpr TemperatureAlias kTemperatureAliases[] = {']
+    for u in sorted(units.values(),key=lambda u:u['id']):
+        if 'legacy_temperature_unit' in u:lines.append('{UnitId(%d),UnitId(%d)},'%(u['id'],u['legacy_temperature_unit']))
     lines+=['};','inline constexpr Category kCategories[] = {']
     for c in data['categories']:lines.append('{%d,%d,%s,%s},'%(c['id'],c['parent'],q(c['en']),q(c['es'])))
     lines+=['};','inline constexpr Item kItems[] = {']
@@ -135,7 +140,12 @@ def outputs(data):
         component=i.get('prefix_component',0);definition=units[terms[component][0]]
         selector=i.get('prefix_selector','unit' in i) and len(definition['offered_prefixes'])>1
         quantity=i.get('quantity',units[terms[0][0]]['quantity'])
-        ts=['{{UnitId(%d),PrefixId(%d)},%d}'%tuple(t) for t in terms]
+        ts=[]
+        for uid,prefix,power in terms:
+            d=units[uid];role=i.get('temperature_role',d['temperature_role'])
+            if d['temperature_role']!='none' and (len(terms)>1 or power!=1):role='difference'
+            uid=d.get('legacy_temperature_unit',uid)
+            ts.append('{{UnitId(%d),PrefixId(%d)},%d}'%(uid,prefix,power) if role=='none' else '{{UnitId(%d),PrefixId(%d),TemperatureRole::%s},%d}'%(uid,prefix,cpp_enum(role),power))
         coefficient=i.get('coefficient',[1,1,0,0])
         lines.append('{%d,%d,%s,%s,%s,{%s},%d,PrefixId(%d),%s,%d,%dU,%dU},'%(i['id'],i['category'],q(i['en']),q(i['es']),q(quantity),','.join(ts),len(terms),i['default_prefix'],str(selector).lower(),component,*coefficient[:2]))
         for pid in (definition['offered_prefixes'] if selector else [0]):

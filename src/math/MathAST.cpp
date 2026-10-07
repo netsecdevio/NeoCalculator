@@ -1425,7 +1425,7 @@ static void setTextLayout(MathNode* node, LayoutResult& layout,
 
 NodePtr makeUnit(numos::units::Atom atom) {
     if(!numos::units::valid(atom))return {};
-    return NodePtr(new NodeUnit(atom));
+    return NodePtr(new NodeUnit(numos::units::normalized(atom)));
 }
 void NodeUnit::calculateLayout(const FontMetrics& fm) {
     char text[32]{};numos::units::symbol(_atom,text,sizeof(text));

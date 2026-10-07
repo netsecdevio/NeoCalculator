@@ -9,14 +9,14 @@ commands=json.loads((a.host/'commands.json').read_text());base=commands[0]['comm
 mutations=[
  ('omit-kilo','Quantity',[('e.decimal+prefix','e.decimal')]),
  ('prefix-power-once','Quantity',[('std::to_string(t.power)','std::to_string(1)')]),
- ('gram-as-kilogram','Quantity',[('out.coefficient=exact(d->scale,units::prefix(a.prefix)->exponent);','auto broken=d->scale;if(uint16_t(a.unit)==2)broken.decimal=0;out.coefficient=exact(broken,units::prefix(a.prefix)->exponent);')]),
+ ('gram-as-kilogram','Quantity',[('const auto factor=exact(d->scale,units::prefix(a.prefix)->exponent);','auto broken=d->scale;if(uint16_t(a.unit)==2)broken.decimal=0;const auto factor=exact(broken,units::prefix(a.prefix)->exponent);')]),
  ('cancel-without-scaling','Quantity',[('a.meaning=propagated(a,b,op==OpKind::Div);','if(op==OpKind::Div && a.dimension==b.dimension)b.coefficient="1";a.meaning=propagated(a,b,op==OpKind::Div);')]),
  ('incompatible-add','Quantity',[('if(a.dimension!=b.dimension)return fail(Error::DimensionMismatch);','')]),
- ('output-label-only','Quantity',[('group(value.coefficient)+"/"+group(scale(descriptor))','group(value.coefficient)')]),
+ ('output-label-only','Quantity',[('group(canonical)+"/"+group(scale(descriptor))','group(canonical)')]),
  ('rescale-ans','CalculationEngine',[('out=*slot.quantity;return true;','out=*slot.quantity;out.coefficient="100*("+out.coefficient+")";return true;')]),
  ('unit-as-scalar','Quantity',[('out.dimension=dimension(a);out.meaning=a.unit;','out.dimension={};out.meaning=a.unit;')]),
  ('erase-context','Quantity',[('return fail(r->exactness==units::Exactness::Measured?Error::UncertaintyPending:\n                    r->kind==units::ReferenceKind::PhysicalConstant?Error::ReferencePending:Error::ContextPending);','out.coefficient="0";return true;')]),
- ('affine-as-factor','Quantity',[('if(d.conversion==units::Conversion::Affine)return Error::AffinePending;',''),('if(d.conversion!=units::Conversion::Multiplicative)return Error::ContextPending;',''),(' || d.offset.numerator','')]),
+ ('affine-as-factor','Quantity',[('out.role=a.role==TemperatureRole::Absolute?Role::TemperaturePoint:linearRole(out.dimension);','out.role=linearRole(out.dimension);')]),
  ('measured-as-exact','Quantity',[('if(d.exactness==units::Exactness::Measured)return Error::UncertaintyPending;',''),('if(d.exactness!=units::Exactness::Exact)return Error::ApproximatePending;','')]),
  ('fuel-without-100','ToolboxCatalog',[]),
 ]

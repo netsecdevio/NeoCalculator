@@ -7,16 +7,18 @@
 namespace numos::units {
 enum class UnitId : uint16_t {};
 enum class PrefixId : uint8_t {};
+enum class TemperatureRole : uint8_t { None, Absolute, Difference };
 struct Atom {
     UnitId unit{}; PrefixId prefix{};
-    constexpr bool operator==(Atom other) const { return unit==other.unit && prefix==other.prefix; }
+    // None uses the registry default at the input boundary (v1 compatibility).
+    TemperatureRole role{};
+    constexpr bool operator==(Atom other) const { return unit==other.unit && prefix==other.prefix && role==other.role; }
 };
 // numerator / denominator * 10^decimal * pi^piPower, in coherent SI.
 // WHY: extreme prefixes and cubed units must not underflow/overflow a double.
 struct Exact { int64_t numerator; uint64_t denominator; int16_t decimal; int8_t piPower; };
 enum class Conversion : uint8_t { Multiplicative, Affine, Formula };
 enum class Exactness : uint8_t { Exact, Measured, Historical, ConventionalApproximate, Contextual, Derived };
-enum class TemperatureRole : uint8_t { None, Absolute, Difference };
 struct Prefix { PrefixId id; int8_t exponent; const char *symbol, *en, *es; };
 struct Definition {
     UnitId id;
@@ -63,7 +65,19 @@ inline const Category* category(uint16_t id) {
 }
 inline bool valid(Atom a) {
     const auto* d=definition(a.unit);const auto p=static_cast<unsigned>(a.prefix);
-    return d && p<25 && (d->standardPrefixes & (uint32_t(1)<<p));
+    return d && p<25 && (d->standardPrefixes & (uint32_t(1)<<p)) &&
+        unsigned(a.role)<=unsigned(TemperatureRole::Difference) &&
+        (a.role==TemperatureRole::None || d->temperature!=TemperatureRole::None) &&
+        !(d->temperature==TemperatureRole::Difference && a.role==TemperatureRole::Absolute);
+}
+inline Atom normalized(Atom a) {
+    const auto* d=definition(a.unit);
+    if(d && a.role==TemperatureRole::None)a.role=d->temperature;
+    // WHY: old difference IDs remain readable, but a difference is now a role
+    // of the original unit, never a new official unit symbol or a second scale.
+    if(d && d->temperature==TemperatureRole::Difference)
+        for(const auto& alias:kTemperatureAliases)if(alias.legacy==a.unit){a.unit=alias.unit;break;}
+    return a;
 }
 inline bool offered(Atom a) {
     const auto* d=definition(a.unit);const auto p=static_cast<unsigned>(a.prefix);
@@ -71,8 +85,9 @@ inline bool offered(Atom a) {
 }
 inline bool symbol(Atom a,char* out,size_t capacity) {
     if(!valid(a)||!capacity)return false;
+    a=normalized(a);
     const auto* d=definition(a.unit);size_t used=0;
-    const char* parts[]={prefix(a.prefix)->symbol,uint8_t(a.prefix)?d->prefixedSymbol:d->symbol};
+    const char* parts[]={a.role==TemperatureRole::Difference?"Δ":"",prefix(a.prefix)->symbol,uint8_t(a.prefix)?d->prefixedSymbol:d->symbol};
     for(const char* part:parts)for(;*part;++part) {
         if(used+1>=capacity){out[0]=0;return false;}
         out[used++]=*part;
@@ -86,13 +101,17 @@ inline bool angularTight(Atom a) {
 // free identifier as a unit. Larger AST containers keep their own framing.
 inline bool encode(Atom a,uint8_t (&bytes)[5]) {
     if(!valid(a))return false;
+    a=normalized(a);
     const auto id=static_cast<uint16_t>(a.unit);
-    bytes[0]=0x55;bytes[1]=1;bytes[2]=uint8_t(id);bytes[3]=uint8_t(id>>8);bytes[4]=uint8_t(a.prefix);return true;
+    // Version 2 uses the spare high nibble for the closed role; size stays 5.
+    bytes[0]=0x55;bytes[1]=uint8_t(2|(unsigned(a.role)<<4));bytes[2]=uint8_t(id);bytes[3]=uint8_t(id>>8);bytes[4]=uint8_t(a.prefix);return true;
 }
 inline bool decode(const uint8_t* bytes,size_t length,Atom& destination) {
-    if(!bytes || length!=5 || bytes[0]!=0x55 || bytes[1]!=1)return false;
-    const Atom a{UnitId(uint16_t(bytes[2]) | (uint16_t(bytes[3])<<8)),PrefixId(bytes[4])};
+    if(!bytes || length!=5 || bytes[0]!=0x55 || (bytes[1]!=1 && (bytes[1]&15)!=2))return false;
+    const Atom a{UnitId(uint16_t(bytes[2]) | (uint16_t(bytes[3])<<8)),PrefixId(bytes[4]),
+        bytes[1]==1?TemperatureRole::None:TemperatureRole(bytes[1]>>4)};
     if(!valid(a))return false;
-    destination=a;return true;
+    if(bytes[1]!=1 && definition(a.unit)->temperature!=TemperatureRole::None && a.role==TemperatureRole::None)return false;
+    destination=normalized(a);return true;
 }
 }
