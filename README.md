@@ -267,6 +267,8 @@ build_src_filter = +<*> +<../tests/CASTest.cpp>
 
 ## Hardware
 
+> ⚠️ **Alpha** PCB and enclosure design files (Rev A, not final — please don't order or print yet): see [`hardware/README.md`](hardware/README.md).
+
 | Component | Specification |
 |:----------|:-------------|
 | **MCU** | ESP32-S3 N16R8 CAM — Dual-core Xtensa LX7 @ 240 MHz |

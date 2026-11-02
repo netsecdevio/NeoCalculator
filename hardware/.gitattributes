@@ -1,0 +1,4 @@
+# Store design sources byte-for-byte (no line-ending normalisation).
+*.kicad_pcb -text
+*.kicad_sch -text
+*.kicad_pro -text
