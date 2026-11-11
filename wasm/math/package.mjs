@@ -61,6 +61,20 @@ const dirty = execFileSync(
   { cwd: repo, encoding: "utf8" }).trim().length > 0;
 const emscriptenVersion = (
   await readFile(join(repo, "wasm", "emscripten.version"), "utf8")).trim();
+// Version every UI dependency so a returning browser cannot mix old code with new HTML.
+assets.steps = await asset("steps", "learning-steps.js",
+  await readFile(join(sourceDir, "learning-steps.js")), "text/javascript");
+assets.styles = await asset("styles", "workspace.css",
+  await readFile(join(sourceDir, "workspace.css")), "text/css");
+let workspace = await readFile(join(sourceDir, "workspace.js"), "utf8");
+workspace = workspace.replace("./learning-steps.js", assets.steps.url)
+  .replaceAll("./numos-math-assets.json", `./numos-math-assets.json?v=${gitRevision}`);
+assets.workspace = await asset("workspace", "workspace.js", Buffer.from(workspace), "text/javascript");
+let html = await readFile(join(sourceDir, "index.html"), "utf8");
+html = html.replace('href="workspace.css"', `href="${assets.styles.url}"`)
+  .replace('src="workspace.js"', `src="${assets.workspace.url}"`);
+await writeFile(join(distDir, "index.html"), html);
+
 const manifest = {
   schemaVersion: 1,
   build: {
@@ -97,6 +111,3 @@ for (const entry of Object.values(assets)) {
 }
 console.log(JSON.stringify(report, null, 2));
 
-for (const name of ["index.html", "workspace.js", "workspace.css", "learning-steps.js"]) {
-  await writeFile(join(distDir, name), await readFile(join(sourceDir, name)));
-}

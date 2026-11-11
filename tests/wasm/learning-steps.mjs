@@ -12,7 +12,10 @@ try {
     try {
       const page=await browser.newPage();
       let failManifest=true;
-      await page.route('**/numos-math-assets.json', route=>failManifest?route.fulfill({status:503,body:'unavailable'}):route.continue());
+      await page.route('**/numos-math-assets.json*', route=>failManifest?route.fulfill({status:503,body:'unavailable'}):route.continue());
+      // An old cached unversioned script must never be requested by the new page.
+      await page.route('**/workspace.js', route=>route.fulfill({contentType:'text/javascript',body:'throw Error("stale script loaded")'}));
+      await page.route('**/learning-steps.js', route=>route.fulfill({contentType:'text/javascript',body:'throw Error("stale steps loaded")'}));
       await page.goto(server.origin);
       await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('retry'));
       assert.equal(await page.getByRole('button',{name:'Clear session'}).isEnabled(),true);
