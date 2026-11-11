@@ -17,6 +17,8 @@ try {
       await page.route('**/workspace.js', route=>route.fulfill({contentType:'text/javascript',body:'throw Error("stale script loaded")'}));
       await page.route('**/learning-steps.js', route=>route.fulfill({contentType:'text/javascript',body:'throw Error("stale steps loaded")'}));
       await page.goto(server.origin);
+      assert.match(await page.locator('link[rel="stylesheet"]').getAttribute('href'), /^\.\/workspace\.[a-f0-9]{12}\.css$/);
+      assert.match(await page.locator('script[type="module"]').getAttribute('src'), /^\.\/workspace\.[a-f0-9]{12}\.js$/);
       await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('retry'));
       assert.equal(await page.getByRole('button',{name:'Clear session'}).isEnabled(),true);
       failManifest=false;
