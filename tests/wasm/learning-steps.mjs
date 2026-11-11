@@ -47,6 +47,21 @@ try {
       await rejecting.waitForFunction(()=>document.querySelector('#status').textContent.includes('could not be verified'));
       assert.equal(await rejecting.locator('#explanation').isVisible(),false);
       await rejecting.close();
+      const delayed=await browser.newPage();
+      await delayed.route('**/numos-math-client.*.js',route=>route.fulfill({contentType:'text/javascript',body:`export async function createNumosMath(){const delay=async()=>{await new Promise(r=>setTimeout(r,250));return {displayText:'5'}};return {evaluate:delay,solve:async()=>{await delay();throw Error('old error')},compile1D:async()=>({evaluateMany:async()=>{await delay();return []},dispose:async()=>{}}),shutdown:async()=>{}}}`}));
+      await delayed.goto(server.origin);
+      await delayed.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
+      for(const action of ['Calculate','Graph','Solve for x']) {
+        await delayed.locator('#expression').fill('2+3');
+        await delayed.getByRole('button',{name:action,exact:true}).click();
+        await delayed.locator('#expression').fill('8+9');
+        await delayed.waitForFunction(()=>!document.querySelector('[data-action="evaluate"]').disabled);
+        assert.equal(await delayed.locator('#answer').innerText(),'');
+        assert.equal(await delayed.locator('#graph').isVisible(),false);
+        assert.match(await delayed.locator('#status').innerText(),/^New problem/);
+      }
+      await delayed.close();
+
       console.log(engine.name()+': checked explanations, unsupported cases and stale-step clearing passed');
     } finally {await browser.close();}
   }

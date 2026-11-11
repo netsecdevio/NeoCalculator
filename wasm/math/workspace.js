@@ -79,7 +79,7 @@ async function run(action) {
   if (!math || buttons[0].disabled) return;
   const text = input.value.trim(); if (!text) { status.textContent = 'Enter an expression first.'; return; }
   if (new TextEncoder().encode(text).length > 2000) { status.textContent = 'Please shorten the expression to 2,000 bytes or fewer.'; return; }
-  const token = generation, session = math; busy(true); status.textContent = 'Working…'; answer.textContent = ''; canvas.hidden = true;
+  const token = generation, version = explanationVersion, session = math; busy(true); status.textContent = 'Working…'; answer.textContent = ''; canvas.hidden = true;
   document.querySelector('#graph-description').textContent = '';
   try {
     if (action === 'graph') {
@@ -87,7 +87,7 @@ async function run(action) {
       const handle = await session.compile1D(expression, 'x');
       try {
         const values = await handle.evaluateMany(Array.from({length:721},(_,i)=>-10+i/36));
-        if (token !== generation) return;
+        if (token !== generation || version !== explanationVersion) return;
         const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,720,480);
         ctx.lineWidth=1; ctx.strokeStyle='#dbe5ee';
         for(let i=0;i<=20;i++){ctx.beginPath();ctx.moveTo(i*36,0);ctx.lineTo(i*36,480);ctx.moveTo(0,i*24);ctx.lineTo(720,i*24);ctx.stroke();}
@@ -99,11 +99,11 @@ async function run(action) {
       } finally { await handle.dispose().catch(()=>{}); }
     } else {
       const result = action === 'solve' ? await session.solve(text,'x') : await session[action](text);
-      if (token !== generation) return;
+      if (token !== generation || version !== explanationVersion) return;
       answer.textContent = action === 'solve' ? solveText(result.result) : result.displayText;
     }
-    if (token === generation) status.textContent = 'Done. Check the result against your working.';
-  } catch(error) { if(token === generation) status.textContent = error.code === 'TIME_LIMIT' || error.code === 'SHUTDOWN' ? 'That calculation stopped. Choose Clear session to start again.' : error.message; }
+    if (token === generation && version === explanationVersion) status.textContent = 'Done. Check the result against your working.';
+  } catch(error) { if(token === generation && version === explanationVersion) status.textContent = error.code === 'TIME_LIMIT' || error.code === 'SHUTDOWN' ? 'That calculation stopped. Choose Clear session to start again.' : error.message; }
   finally { if(token === generation) busy(false); }
 }
 document.querySelector('#calculator').addEventListener('submit', event=>{event.preventDefault();void run('evaluate');});
