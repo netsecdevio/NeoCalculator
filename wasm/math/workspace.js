@@ -12,6 +12,7 @@ function nodeText(node) {
   if (operators[node.kind]) return '(' + children.join(operators[node.kind]) + ')';
   if (node.kind === 'negative') return '-(' + children[0] + ')';
   if (node.kind === 'inverse') return '1/(' + children[0] + ')';
+  if (node.kind === 'root') return '(' + children[0] + ')^(1/' + children[1] + ')';
   if (node.kind === 'sqrt') return 'sqrt(' + children[0] + ')';
   if (node.kind === 'pi' || node.kind === 'e') return node.kind;
   if (node.kind === 'function') return node.name + '(' + children.join(', ') + ')';
