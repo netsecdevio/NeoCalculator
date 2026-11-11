@@ -1,3 +1,4 @@
+import {buildExplanation} from './learning-steps.js';
 const input = document.querySelector('#expression');
 const status = document.querySelector('#status');
 const answer = document.querySelector('#answer');
@@ -5,6 +6,37 @@ const canvas = document.querySelector('#graph');
 // Clear session deliberately has no data-action: it stays enabled during loads and failures.
 const buttons = [...document.querySelectorAll('[data-action]')];
 let math, createMath, generation = 0;
+const explanation = document.querySelector('#explanation');
+let explanationVersion = 0;
+function clearExplanation() { ++explanationVersion; explanation.hidden=true; explanation.replaceChildren(); }
+input.addEventListener('input', () => { clearExplanation(); answer.textContent=''; canvas.hidden=true; document.querySelector('#graph-description').textContent=''; status.textContent='New problem. Calculate or ask for steps.'; });
+async function explain() {
+  if (!math || buttons[0].disabled) return;
+  clearExplanation();
+  const version=explanationVersion,token=generation,session=math,text=input.value.trim();
+  busy(true); status.textContent='Checking each step…';
+  try {
+    const plan=buildExplanation(text);
+    if(!plan) { status.textContent='Steps are not available for this expression yet. Try 2*x+4=0, 1/3+1/6, or log10(1000).'; return; }
+    for(const item of plan.checks) {
+      const difference='('+item.expression+')-('+item.expected+')';
+      let verified=await session.evaluate(difference);
+      if(verified.result?.kind!=='integer' || verified.result.value!=='0') verified=await session.simplify(difference);
+      if(verified.result?.kind!=='integer' || verified.result.value!=='0') throw Error('These steps could not be verified. They have not been shown.');
+    }
+    if(token!==generation || version!==explanationVersion) return;
+    const heading=document.createElement('h2');heading.textContent=plan.title;
+    const list=document.createElement('ol');
+    for(const step of plan.steps) {
+      const item=document.createElement('li'),instruction=document.createElement('p'),mathLine=document.createElement('p');
+      instruction.textContent=step.instruction;mathLine.textContent=step.math;mathLine.className='step-math';
+      item.append(instruction,mathLine);list.append(item);
+    }
+    explanation.append(heading,list);explanation.hidden=false;
+    status.textContent='Steps checked. Try explaining the next move in your own words.';
+  } catch(error) { if(token===generation && version===explanationVersion) status.textContent=error.message; }
+  finally { if(token===generation) busy(false); }
+}
 function nodeText(node) {
   if (node.value !== undefined) return node.value;
   if (node.displayText) return node.displayText;
@@ -29,7 +61,7 @@ function solveText(result) {
 }
 function busy(value) { buttons.forEach(button => { button.disabled = value; }); }
 async function reset() {
-  const token = ++generation;
+  const token = ++generation; clearExplanation();
   busy(true); input.value = ''; answer.textContent = ''; canvas.hidden = true;
   document.querySelector('#graph-description').textContent = '';
   status.textContent = 'Starting a fresh session…';
@@ -42,6 +74,8 @@ async function reset() {
   } catch(error) { if(token === generation) status.textContent = 'Could not start: ' + error.message; }
 }
 async function run(action) {
+  if(action==='explain') { await explain(); return; }
+  clearExplanation();
   if (!math || buttons[0].disabled) return;
   const text = input.value.trim(); if (!text) { status.textContent = 'Enter an expression first.'; return; }
   if (new TextEncoder().encode(text).length > 2000) { status.textContent = 'Please shorten the expression to 2,000 bytes or fewer.'; return; }
