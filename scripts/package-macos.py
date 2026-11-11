@@ -24,6 +24,7 @@ bundled_sdl3 = frameworks / "libSDL3.dylib"
 shutil.copy2(sdl3, bundled_sdl3)
 copied[sdl3.resolve()] = bundled_sdl3
 queue.append(bundled_sdl3)
+subprocess.run(["install_name_tool", "-id", "@executable_path/../Frameworks/libSDL3.dylib", str(bundled_sdl3)], check=True)
 while queue:
     target = queue.pop()
     lines = subprocess.check_output(["otool", "-L", str(target)], text=True).splitlines()[1:]
@@ -42,7 +43,7 @@ while queue:
             subprocess.run(["install_name_tool", "-id", "@executable_path/../Frameworks/" + source.name, str(bundled)], check=True)
         subprocess.run(["install_name_tool", "-change", dependency, "@executable_path/../Frameworks/" + source.name, str(target)], check=True)
 launcher = mac / "NeoCalculator"
-launcher.write_text('#!/bin/sh\nset -eu\napp_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nstate_dir="$HOME/Library/Application Support/NeoCalculator"\nmkdir -p "$state_dir"\ncd "$state_dir"\nexec "$app_dir/numos" "$@"\n')
+launcher.write_text('#!/bin/sh\nset -eu\napp_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nstate_dir="$HOME/Library/Application Support/NeoCalculator"\nmkdir -p "$state_dir"\ncd "$state_dir"\nexport DYLD_LIBRARY_PATH="$app_dir/../Frameworks"\nexec "$app_dir/numos" "$@"\n')
 launcher.chmod(0o755)
 (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleName":"NeoCalculator", "CFBundleDisplayName":"NeoCalculator", "CFBundleIdentifier":"io.netsecdev.neocalculator", "CFBundleExecutable":"NeoCalculator", "CFBundlePackageType":"APPL", "CFBundleVersion":"1", "CFBundleShortVersionString":"0.1.0", "NSHighResolutionCapable":True}))
 resources = app / "Contents/Resources"

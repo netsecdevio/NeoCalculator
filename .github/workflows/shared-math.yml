@@ -14,3 +14,23 @@ jobs:
       - run: node tests/wasm/keycode-catalog.mjs
       - run: npm ci --prefix tests/wasm --ignore-scripts
       - run: npm audit --prefix tests/wasm --audit-level=moderate
+  browser-math:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned Emscripten
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+          /tmp/emsdk/emsdk install "$(cat wasm/emscripten.version)"
+          /tmp/emsdk/emsdk activate "$(cat wasm/emscripten.version)"
+      - name: Build math module
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          bash wasm/math/build.sh Release
+      - run: npm ci --prefix tests/wasm --ignore-scripts
+      - run: npx --prefix tests/wasm playwright install --with-deps chromium firefox webkit
+      - run: node tests/wasm/math.mjs
+      - run: node tests/wasm/workspace.mjs
