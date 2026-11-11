@@ -27,6 +27,7 @@ async function dispatch(method, args) {
     return result;
   }
   if (method === "compileHandle1D" || method === "compileHandle2D") {
+    if (handles.size >= 32) throw Object.assign(new Error("too many retained expressions"), {code: "INVALID_REQUEST"});
     const handle = method === "compileHandle1D"
       ? await math.compile1D(...args) : await math.compile2D(...args);
     const id = `worker-handle-${nextHandle++}`;
@@ -41,10 +42,15 @@ async function dispatch(method, args) {
       case "handle.evaluateMany1D": return handle.evaluateMany(args[1]);
       case "handle.evaluate2D": return handle.evaluate(args[1], args[2]);
       case "handle.evaluateGrid2D": return handle.evaluateGrid(args[1]);
-      case "handle.dispose": return handle.dispose();
+      case "handle.dispose": {
+        try { return await handle.dispose(); }
+        finally { handles.delete(args[0]); }
+      }
       default: throw staleHandle();
     }
   }
+  const allowed = new Set(["evaluate", "approximate", "simplify", "differentiate", "integrate", "solve", "setAngleMode", "getAngleMode", "setVariable", "removeVariable", "clearVariables", "reset", "diagnostics"]);
+  if (!allowed.has(method)) throw Object.assign(new Error("unknown math operation"), {code: "INVALID_REQUEST"});
   return math[method](...args);
 }
 
