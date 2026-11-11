@@ -4,6 +4,27 @@ const answer = document.querySelector('#answer');
 const canvas = document.querySelector('#graph');
 const buttons = [...document.querySelectorAll('[data-action]')];
 let math, createMath, generation = 0;
+function nodeText(node) {
+  if (node.value !== undefined) return node.value;
+  if (node.displayText) return node.displayText;
+  const children = (node.children || []).map(nodeText);
+  const operators = {sum:' + ', product:' * ', rational:' / ', power:' ^ ', equation:' = '};
+  if (operators[node.kind]) return '(' + children.join(operators[node.kind]) + ')';
+  if (node.kind === 'negative') return '-(' + children[0] + ')';
+  if (node.kind === 'inverse') return '1/(' + children[0] + ')';
+  if (node.kind === 'sqrt') return 'sqrt(' + children[0] + ')';
+  if (node.kind === 'pi' || node.kind === 'e') return node.kind;
+  if (node.kind === 'function') return node.name + '(' + children.join(', ') + ')';
+  throw Error('This answer needs a display format this calculator does not support yet.');
+}
+function solveText(result) {
+  if (result.setKind === 'no_solution') return 'No solution found in the supported domain.';
+  if (result.setKind === 'all_values') return 'All values of x satisfy this equation in its domain.';
+  if (result.coverage !== 'finite' || result.restrictions?.length || result.families?.length)
+    return 'This equation has conditional or repeating solutions. A complete answer is not supported by this view yet.';
+  if (result.setKind !== 'solutions') return 'This equation is not supported yet.';
+  return result.groups.map(group => group.values.map(v => v.variable + ' = ' + nodeText(v.value)).join(', ')).join(' or ');
+}
 function busy(value) { buttons.forEach(button => { button.disabled = value; }); }
 async function reset() {
   const token = ++generation;
@@ -21,6 +42,7 @@ async function reset() {
 async function run(action) {
   if (!math || buttons[0].disabled) return;
   const text = input.value.trim(); if (!text) { status.textContent = 'Enter an expression first.'; return; }
+  if (new TextEncoder().encode(text).length > 2000) { status.textContent = 'Please shorten the expression to 2,000 bytes or fewer.'; return; }
   const token = generation, session = math; busy(true); status.textContent = 'Working…'; answer.textContent = ''; canvas.hidden = true;
   document.querySelector('#graph-description').textContent = '';
   try {
@@ -42,7 +64,7 @@ async function run(action) {
     } else {
       const result = action === 'solve' ? await session.solve(text,'x') : await session[action](text);
       if (token !== generation) return;
-      answer.textContent = result.displayText || JSON.stringify(result.result, null, 2);
+      answer.textContent = action === 'solve' ? solveText(result.result) : result.displayText;
     }
     if (token === generation) status.textContent = 'Done. Check the result against your working.';
   } catch(error) { if(token === generation) status.textContent = error.code === 'TIME_LIMIT' || error.code === 'SHUTDOWN' ? 'That calculation stopped. Choose Clear session to start again.' : error.message; }
@@ -50,7 +72,8 @@ async function run(action) {
 }
 document.querySelector('#calculator').addEventListener('submit', event=>{event.preventDefault();void run('evaluate');});
 buttons.filter(b=>b.type!=='submit').forEach(button=>button.addEventListener('click',()=>void run(button.dataset.action)));
-document.querySelector('#clear').addEventListener('click',()=>{if(createMath) void reset();});
+document.querySelector('#clear').addEventListener('click',()=>{if(createMath) void reset(); else void load();});
+async function load() {
 busy(true);
 try {
   const manifestUrl = new URL('./numos-math-assets.json', import.meta.url);
@@ -58,4 +81,6 @@ try {
   const manifest = await response.json();
   const module = await import(new URL(manifest.assets.client.url, manifestUrl));
   createMath = module.createNumosMath; await reset();
-} catch(error) { status.textContent='Could not load calculator: '+error.message; }
+} catch(error) { status.textContent='Could not load calculator: '+error.message+'. Choose Clear session to retry.'; }
+}
+void load();
