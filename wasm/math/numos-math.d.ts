@@ -114,4 +114,5 @@ export interface NumosMath {
 
 export function createNumosMath(options?: {
   manifestUrl?: string | URL;
+  requestTimeoutMs?: number;
 }): Promise<NumosMath>;

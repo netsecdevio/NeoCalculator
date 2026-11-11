@@ -16,6 +16,8 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
+      - 'lib/giac/**'
+      - 'lib/libtommath/**'
       - 'tests/emulator/**'
       - 'tests/host/**'
       - 'platformio.ini'
@@ -35,6 +37,8 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'lib/giac/**'
+      - 'lib/libtommath/**'
       - 'tests/emulator/**'
       - 'tests/host/**'
       - 'platformio.ini'
@@ -185,6 +189,8 @@ jobs:
 
       - name: Calculation editor allocation and placeholder checks
         run: |
+          cp compile_commands.json "$RUNNER_TEMP/neo-original-compile-commands.json"
+          trap 'cp "$RUNNER_TEMP/neo-original-compile-commands.json" compile_commands.json' EXIT
           pio run -e emulator_pc -t compiledb
           python scripts/test-tutor-composition-host.py --source . --build .pio/build/emulator_pc --out out/calc-core-input-01/editor-ci --tests calculation_input_checks
 

@@ -52,6 +52,19 @@ bool isEquality(const MathNode* node) {
                    (node->type()==NodeType::Operator &&
                     static_cast<const NodeOperator*>(node)->op()==OpKind::Eq));
 }
+bool supportedEquationSymbols(const MathNode* node, int equationCount, int depth=0) {
+    if (!node || depth>28) return false;
+    // This app solves only x or x/y/z systems; unknown parameters must not
+    // silently turn a conditional equation into an unconditional answer.
+    if (node->type()==NodeType::Variable) {
+        const char name=static_cast<const NodeVariable*>(node)->name();
+        if (name!='x' && !(name=='y' && equationCount>=2) && !(name=='z' && equationCount>=3)) return false;
+    }
+    if (node->type()==NodeType::Symbol) return false;
+    for(int i=0;i<node->childCount();++i)
+        if(!supportedEquationSymbols(node->child(i),equationCount,depth+1)) return false;
+    return true;
+}
 bool mayHaveDomainConditions(const MathNode* node, int depth=0) {
     if (!node || depth>28) return true;
     if (node->type()==NodeType::Fraction || node->type()==NodeType::Function ||
@@ -513,6 +526,7 @@ void EquationsApp::solveEquations() {
     for(int i=0;i<_numEquations;++i) {
         NodePtr lhs,rhs; numos::SolveEquation eq; std::string error;
         if(!splitAtEquals(_eqRowData[i],lhs,rhs)) error="Use one equality with both sides filled.";
+        else if(!supportedEquationSymbols(lhs.get(),_numEquations) || !supportedEquationSymbols(rhs.get(),_numEquations)) error=_numEquations==1?"Use x for one equation.":_numEquations==2?"Use x and y for two equations.":"Use x, y and z for three equations.";
         else if(!numos::CalculationEngine::serializeForGiac(lhs.get(),eq.lhs,error) ||
                 !numos::CalculationEngine::serializeForGiac(rhs.get(),eq.rhs,error)) { if(error.empty()) error="Incomplete equation."; }
         if(!error.empty()) {
