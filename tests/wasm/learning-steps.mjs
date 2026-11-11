@@ -3,7 +3,7 @@ import {chromium,webkit} from 'playwright';
 import {resolve} from 'node:path';
 import {startStaticServer} from './test-server.mjs';
 import {buildExplanation} from '../../wasm/math/learning-steps.js';
-for(const input of ['x^2=2','sin(x)','0*x+1=2','1 2x=4','*x=4','log10(3)','log10(0)']) assert.equal(buildExplanation(input),null,input);
+for(const input of ['x^2=2','sin(x)','0*x+1=2','1 2x=4','*x=4','log10(3)','log10(0)','log10(10000000000000)']) assert.equal(buildExplanation(input),null,input);
 assert.throws(()=>buildExplanation('1/0+1/2'),/zero/);
 const server=await startStaticServer(resolve('out/wasm-math/dist/release'),8797);
 try {
@@ -22,7 +22,7 @@ try {
       assert.equal(await page.locator('#explanation').isVisible(),false);
       for(const [input,expected] of [
         ['2*x+4=0','x = -2'],['-3*x-2=7','x = -3'],['1/2*x+1/3=2/3','x = 2/3'],
-        ['1/3+1/6','1/2'],['1/3-5/6','-1/2'],['log10(1000)','log10(1000) = 3'],['log10(0.01)','log10(0.01) = -2'],
+        ['1/3+1/6','1/2'],['1/3-5/6','-1/2'],['log10(1000)','log10(1000) = 3'],['log10(0.01)','log10(0.01) = -2'],['log10(1000000000000)','log10(1000000000000) = 12'],['log10(0.000000000001)','log10(0.000000000001) = -12'],
       ]) {
         await page.locator('#expression').fill(input);
         assert.equal(await page.locator('#explanation').isVisible(),false);
