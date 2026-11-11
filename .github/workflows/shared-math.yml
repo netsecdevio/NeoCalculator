@@ -1,0 +1,16 @@
+name: Shared math boundary
+on: [pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node tests/wasm/math-client-limits.mjs
+      - run: node tests/wasm/keycode-catalog.mjs
+      - run: npm ci --prefix tests/wasm --ignore-scripts
+      - run: npm audit --prefix tests/wasm --audit-level=moderate
