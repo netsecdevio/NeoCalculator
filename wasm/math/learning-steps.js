@@ -44,7 +44,7 @@ export function buildExplanation(input) {
       {instruction:'Reduce by any common factor.',math:result},
     ],checks:[check(show(a),`${left}/${denominator}`),check(show(b),`${right}/${denominator}`),check(text,result)]};
   }
-  const log=text.match(/^log10\((\d{1,12}(?:\.\d{1,12})?)\)$/);
+  const log=text.match(/^log10\((\d{1,13}(?:\.\d{1,12})?)\)$/);
   if (log) {
     const [whole,decimal='']=log[1].split('.');
     const value=rational(BigInt(whole+decimal),10n**BigInt(decimal.length));
