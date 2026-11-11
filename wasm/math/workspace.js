@@ -2,6 +2,7 @@ const input = document.querySelector('#expression');
 const status = document.querySelector('#status');
 const answer = document.querySelector('#answer');
 const canvas = document.querySelector('#graph');
+// Clear session deliberately has no data-action: it stays enabled during loads and failures.
 const buttons = [...document.querySelectorAll('[data-action]')];
 let math, createMath, generation = 0;
 function nodeText(node) {
