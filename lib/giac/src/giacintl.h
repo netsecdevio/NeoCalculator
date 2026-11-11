@@ -8,7 +8,7 @@
 #include "first.h"
 
 #ifndef FIR
-#if (defined(__APPLE__) && !defined(INT128)) || defined(__FreeBSD__) || defined(__linux__)
+#if (defined(__APPLE__) && !defined(INT128)) || defined(__FreeBSD__) || (defined(__linux__) && __has_include(<libintl.h>))
 #include <libintl.h>
 #ifndef _LIBINTL_H
 #define _LIBINTL_H      1
