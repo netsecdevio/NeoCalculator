@@ -97,6 +97,6 @@ for (const entry of Object.values(assets)) {
 }
 console.log(JSON.stringify(report, null, 2));
 
-for (const name of ["index.html", "workspace.js", "workspace.css"]) {
+for (const name of ["index.html", "workspace.js", "workspace.css", "learning-steps.js"]) {
   await writeFile(join(distDir, name), await readFile(join(sourceDir, name)));
 }
