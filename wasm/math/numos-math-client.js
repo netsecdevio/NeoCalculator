@@ -29,7 +29,9 @@ export async function createNumosMath({
     pending.clear();
   };
   const bind = () => {
+    const boundWorker = worker;
     worker.onmessage = ({ data }) => {
+      if (worker !== boundWorker) return;
       const request = pending.get(data.requestId);
       if (!request) return;
       clearTimeout(request.timer);
@@ -38,6 +40,7 @@ export async function createNumosMath({
               : request.reject(makeError(data.error));
     };
     worker.onerror = (event) => {
+      if (worker !== boundWorker) return;
       shutDown = true;
       worker.terminate();
       rejectAll("INTERNAL_ERROR", event.message || "NumOS Math Worker failed");
@@ -66,16 +69,18 @@ export async function createNumosMath({
 
   const withDisposal = (id, methods) => {
     let disposed = false;
+    let disposing;
     return Object.freeze({...methods, dispose: () => {
       if (disposed) return Promise.reject(makeError({code: "DISPOSED_HANDLE", message: "expression was disposed"}));
-      disposed = true;
-      return request("handle.dispose", [id]);
+      if (disposing) return disposing;
+      disposing = request("handle.dispose", [id]).then(result => { disposed = true; return result; }).finally(() => { disposing = undefined; });
+      return disposing;
     }});
   };
   const make1D = (id) => withDisposal(id, {
     evaluate: (x) => request("handle.evaluate1D", [id, x]),
     evaluateMany: (values) => {
-      if (!(Array.isArray(values) || ArrayBuffer.isView(values)) || !Number.isInteger(values.length) || values.length > 4096)
+      if (values == null || !Number.isInteger(values.length) || values.length < 0 || values.length > 4096)
         return Promise.reject(makeError({code: "INVALID_REQUEST", message: "at most 4096 graph samples are allowed"}));
       return request("handle.evaluateMany1D", [id, Array.from(values)]);
     },

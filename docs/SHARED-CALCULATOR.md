@@ -5,7 +5,7 @@ Fork baseline: 39d7d1ed50b2079f19534376c7b7146738bd9a1e. Software retains GPL-3.
 
 Native Mac build:
 
-    brew install platformio sdl2 pkg-config gettext
+    brew install platformio sdl2 sdl3 pkg-config gettext
     PLATFORMIO_BUILD_DIR="$PWD/out/native-build" pio run -e emulator_pc
     out/native-build/emulator_pc/program --headless --deterministic --frames 7000 --script tests/emulator/scripts/production_demo_acceptance.numos
     python3 scripts/package-macos.py out/native-build/emulator_pc/program out/NeoCalculator.app
