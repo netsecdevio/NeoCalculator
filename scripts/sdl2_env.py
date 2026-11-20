@@ -169,6 +169,19 @@ if _is_windows():
 else:
     _configure_unix()
     if _is_macos():
+        arch = os.environ.get("NUMOS_MAC_ARCH")
+        if arch:
+            if arch not in {"arm64", "x86_64"}:
+                _fail("NUMOS_MAC_ARCH must be arm64 or x86_64")
+            # Explicit release builds compile each slice against the family baseline.
+            env.Append(CCFLAGS=["-arch", arch, "-mmacosx-version-min=13.0"])
+            env.Append(LINKFLAGS=["-arch", arch, "-mmacosx-version-min=13.0"])
+        prefix = os.environ.get("NUMOS_MAC_DEPS_PREFIX")
+        if prefix:
+            if not os.path.isdir(os.path.join(prefix, "lib")):
+                _fail("NUMOS_MAC_DEPS_PREFIX needs a built lib directory")
+            env.Prepend(LIBPATH=[os.path.join(prefix, "lib")])
+            env.Append(CPPPATH=[os.path.join(prefix, "include")])
         # The project Giac seam includes vendored headers even though it is not
         # compiled as a library TU, so it needs the same Apple-libc++ C++17
         # declaration compatibility as lib/giac/extra_script.py.

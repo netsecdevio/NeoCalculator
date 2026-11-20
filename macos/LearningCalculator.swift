@@ -3,28 +3,6 @@ import WebKit
 import Network
 import Security
 
-let keychainService = "io.netsecdev.neocalculator.math"
-func deviceToken() -> String? {
-    let query: [String: Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:keychainService,kSecAttrAccount as String:"device",kSecReturnData as String:true,kSecMatchLimit as String:kSecMatchLimitOne]
-    var result: CFTypeRef?
-    guard SecItemCopyMatching(query as CFDictionary,&result)==errSecSuccess, let data=result as? Data else{return nil}
-    return String(data:data,encoding:.utf8)
-}
-func saveToken(_ token:String) -> Bool {
-    let query:[String:Any]=[kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:keychainService,kSecAttrAccount as String:"device"]
-    let data=Data(token.utf8)
-    let result=SecItemUpdate(query as CFDictionary,[kSecValueData as String:data] as CFDictionary)
-    if result==errSecSuccess{return true}
-    if result != errSecItemNotFound{return false}
-    var item=query;item[kSecValueData as String]=data;item[kSecAttrAccessible as String]=kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    return SecItemAdd(item as CFDictionary,nil)==errSecSuccess
-}
-if CommandLine.arguments.contains("--configure-device") {
-    let data=FileHandle.standardInput.readDataToEndOfFile()
-    guard data.count<8192, let config=try? JSONSerialization.jsonObject(with:data) as? [String:String],let token=config["device_token"],!token.isEmpty,token.count<4096,saveToken(token) else{exit(1)}
-    print("Device connection saved in Keychain.");exit(0)
-}
-
 final class NoRedirect:NSObject,URLSessionTaskDelegate {
     func urlSession(_ session:URLSession,task:URLSessionTask,willPerformHTTPRedirection response:HTTPURLResponse,newRequest request:URLRequest,completionHandler:@escaping(URLRequest?)->Void){completionHandler(nil)}
 }
@@ -32,12 +10,13 @@ final class LocalCalculatorServer {
     let capability=UUID().uuidString+UUID().uuidString
     let session=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     let queue=DispatchQueue(label:"calculator.http")
+    let credentials:KeychainConnection
     let root:URL
     var listener:NWListener?
     var port:UInt16=0
     var files:Set<String>
-    init(root:URL) throws {
-        self.root=root
+    init(root:URL,credentials:KeychainConnection) throws {
+        self.root=root;self.credentials=credentials
         let source=try JSONSerialization.jsonObject(with:Data(contentsOf:root.appendingPathComponent("SOURCE.json"))) as? [String:Any]
         guard let assets=source?["assets"] as? [String:String] else{throw NSError(domain:"Calculator assets",code:1)}
         files=Set(assets.keys);files.insert("SOURCE.json")
@@ -86,15 +65,25 @@ final class LocalCalculatorServer {
         if isRead || isWrite {
             guard headers["x-calculator-capability"]==capability else{reply(c,403,"application/json",Data("{}".utf8));return}
             guard (isRead && method=="GET") || (isWrite && method=="POST" && headers["origin"]==origin) else{reply(c,403,"application/json",Data("{}".utf8));return}
-            guard let token=deviceToken() else{reply(c,401,"application/json",Data("{}".utf8));return}
-            var request=URLRequest(url:URL(string:"https://brainfood.silas-ai.io"+path)!)
-            request.httpMethod=method;request.timeoutInterval=180;request.setValue("Bearer "+token,forHTTPHeaderField:"Authorization")
-            if method=="POST"{request.httpBody=body;request.setValue("application/json",forHTTPHeaderField:"Content-Type")}
-            session.dataTask(with:request){data,response,error in
-                guard error==nil,let response=response as? HTTPURLResponse,let data=data,data.count<=200000 else{self.reply(c,503,"application/json",Data("{}".utf8));return}
-                guard response.url?.host=="brainfood.silas-ai.io",response.value(forHTTPHeaderField:"Content-Type")?.contains("application/json")==true else{self.reply(c,401,"application/json",Data("{}".utf8));return}
-                self.reply(c,response.statusCode,"application/json",data)
-            }.resume();return
+            credentials.read { result in
+                guard case .success(let token) = result else {
+                    if case .failure(let failure) = result {
+                        let data=(try? JSONSerialization.data(withJSONObject:["detail":failure.message])) ?? Data("{}".utf8)
+                        let status:Int;if case .missing=failure{status=401}else{status=503}
+                        self.reply(c,status,"application/json",data)
+                    }
+                    return
+                }
+                var request=URLRequest(url:URL(string:"https://brainfood.silas-ai.io"+path)!)
+                request.httpMethod=method;request.timeoutInterval=180;request.setValue("Bearer "+token,forHTTPHeaderField:"Authorization")
+                if method=="POST"{request.httpBody=body;request.setValue("application/json",forHTTPHeaderField:"Content-Type")}
+                self.session.dataTask(with:request){data,response,error in
+                    guard error==nil,let response=response as? HTTPURLResponse,let data=data,data.count<=200000 else{self.reply(c,503,"application/json",Data("{}".utf8));return}
+                    guard response.url?.host=="brainfood.silas-ai.io",response.value(forHTTPHeaderField:"Content-Type")?.contains("application/json")==true else{self.reply(c,401,"application/json",Data("{}".utf8));return}
+                    self.reply(c,response.statusCode,"application/json",data)
+                }.resume()
+            }
+            return
         }
         let name=path=="/" ? "index.html" : String(path.dropFirst())
         guard method=="GET",files.contains(name),!name.contains("/"),let data=try? Data(contentsOf:root.appendingPathComponent(name)) else{reply(c,404,"text/plain",Data());return}
@@ -111,12 +100,14 @@ final class LocalCalculatorServer {
 final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
     var window:NSWindow!;var server:LocalCalculatorServer!;var localHost:String?;var workspace:WKWebView?
     var pairingInFlight=false
+    let credentials=KeychainConnection()
+    var pendingToken:String?
     let pairingSession=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     func applicationDidFinishLaunching(_ note:Notification){
         NSApp.appearance=NSAppearance(named:.darkAqua)
         do {
             let resources=Bundle.main.resourceURL!
-            server=try LocalCalculatorServer(root:resources.appendingPathComponent("calculator"))
+            server=try LocalCalculatorServer(root:resources.appendingPathComponent("calculator"),credentials:credentials)
             window=NSWindow(contentRect:NSRect(x:0,y:0,width:1050,height:850),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
             window.title="silascalc";window.center()
             let config=WKWebViewConfiguration()
@@ -125,13 +116,14 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
             """
             config.userContentController.addUserScript(WKUserScript(source:script,injectionTime:.atDocumentStart,forMainFrameOnly:true))
             let view=WKWebView(frame:window.contentView!.bounds,configuration:config);view.autoresizingMask=[.width,.height];view.navigationDelegate=self;window.contentView=view;workspace=view
-            let bar=NSMenu();let item=NSMenuItem();let menu=NSMenu();menu.addItem(withTitle:"Connect to Silas…",action:#selector(connectToSilas),keyEquivalent:",");menu.addItem(withTitle:"Open silascalc simulator",action:#selector(openEmulator),keyEquivalent:"e");menu.addItem(.separator());menu.addItem(withTitle:"Quit silascalc",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q");item.submenu=menu;bar.addItem(item);NSApp.mainMenu=bar
+            let bar=NSMenu();let item=NSMenuItem();let menu=NSMenu();menu.addItem(withTitle:"Connect to Silas…",action:#selector(connectToSilas),keyEquivalent:",");menu.addItem(withTitle:"Unlock saved connection…",action:#selector(unlockConnection),keyEquivalent:"u");menu.addItem(withTitle:"Retry saving connection…",action:#selector(retryConnectionSave),keyEquivalent:"");menu.addItem(withTitle:"Open silascalc simulator",action:#selector(openEmulator),keyEquivalent:"e");menu.addItem(.separator());menu.addItem(withTitle:"Quit silascalc",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q");item.submenu=menu;bar.addItem(item);NSApp.mainMenu=bar
             try server.start{url in self.localHost=url.absoluteString.replacingOccurrences(of:"/index.html",with:"");view.load(URLRequest(url:url))}
             window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
         } catch {let alert=NSAlert();alert.messageText="Calculator files could not be opened.";alert.informativeText="Please reinstall the application.";alert.runModal();NSApp.terminate(nil)}
     }
     @objc func connectToSilas(){
         guard !pairingInFlight else{return}
+        if pendingToken != nil { retryConnectionSave(); return }
         let alert=NSAlert();alert.messageText="Connect silascalc to your classes"
         alert.informativeText="Enter the setup code from your parent or teacher. Save or submit any open notes first: connecting reloads this workspace."
         alert.addButton(withTitle:"Connect");alert.addButton(withTitle:"Cancel")
@@ -146,7 +138,7 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
         request.httpBody=try? JSONSerialization.data(withJSONObject:["code":code,"device_name":"silascalc for Mac"])
         pairingSession.dataTask(with:request){data,response,error in
             var message="Could not connect. Check your internet connection and try again."
-            var connected=false
+            var acceptedToken:String?
             if error==nil,let response=response as? HTTPURLResponse {
                 switch response.statusCode {
                 case 404:message="That code was not found. Check it or ask for a new setup code."
@@ -158,16 +150,45 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
                 if response.statusCode==200,response.url?.host=="brainfood.silas-ai.io",response.url?.path=="/api/devices/claim",response.value(forHTTPHeaderField:"Content-Type")?.contains("application/json")==true,
                    let data=data,data.count<65536,let value=try? JSONSerialization.jsonObject(with:data) as? [String:Any],let token=value["device_token"] as? String,!token.isEmpty,token.count<4096,
                    let device=value["device_id"] as? String,!device.isEmpty {
-                    connected=saveToken(token)
-                    if !connected{message="The connection could not be saved in Keychain. Ask for a new setup code and try again."}
+                    acceptedToken=token
                 }
             }
             DispatchQueue.main.async {
                 self.pairingInFlight=false;self.window.title="silascalc"
-                if connected{self.workspace?.reload();self.connectionMessage("Connected to Silas","Your connection is saved securely on this Mac.")}
+                if let token=acceptedToken {self.pendingToken=token;self.persistConnection(interactive:false)}
                 else{self.connectionMessage("Connection not completed",message)}
             }
         }.resume()
+    }
+    func persistConnection(interactive:Bool) {
+        guard !pairingInFlight,let token=pendingToken else{return}
+        pairingInFlight=true;window.title="silascalc — Saving connection…"
+        credentials.save(token,interactive:interactive){result in DispatchQueue.main.async {
+            self.pairingInFlight=false;self.window.title="silascalc"
+            switch result {
+            case .success:
+                self.pendingToken=nil;self.workspace?.reload()
+                self.connectionMessage("Connected to Silas","Your connection is saved securely on this Mac.")
+            case .failure(let failure):
+                self.connectionMessage("Setup accepted — save still needed",failure.message+" Your setup code was accepted. Keep this app open and choose Retry saving connection; you do not need another code.")
+            }
+        }}
+    }
+    @objc func retryConnectionSave() {
+        guard pendingToken != nil else{connectionMessage("No pending connection","Choose Unlock saved connection to use an existing connection, or Connect to Silas for a new setup code.");return}
+        persistConnection(interactive:true)
+    }
+    @objc func unlockConnection() {
+        guard !pairingInFlight else{return}
+        if pendingToken != nil{persistConnection(interactive:true);return}
+        pairingInFlight=true;window.title="silascalc — Unlocking connection…"
+        credentials.read(interactive:true){result in DispatchQueue.main.async {
+            self.pairingInFlight=false;self.window.title="silascalc"
+            switch result {
+            case .success:self.workspace?.reload();self.connectionMessage("Connection unlocked","Your saved connection is ready on this Mac.")
+            case .failure(let failure):self.connectionMessage("Connection not unlocked",failure.message)
+            }
+        }}
     }
     func connectionMessage(_ title:String,_ detail:String){let alert=NSAlert();alert.messageText=title;alert.informativeText=detail;alert.addButton(withTitle:"OK");alert.runModal()}
     func webView(_ webView:WKWebView,decidePolicyFor action:WKNavigationAction,decisionHandler:@escaping(WKNavigationActionPolicy)->Void){
@@ -185,4 +206,27 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender:NSApplication)->Bool{true}
 }
-let app=NSApplication.shared;app.setActivationPolicy(.regular);let delegate=CalculatorApp();app.delegate=delegate;app.run()
+#if !KEYCHAIN_TESTS
+@main
+struct LearningCalculator {
+    static func main() {
+        if CommandLine.arguments.contains("--configure-device") {
+            let data=FileHandle.standardInput.readDataToEndOfFile()
+            guard data.count<8192,let config=try? JSONSerialization.jsonObject(with:data) as? [String:String],let token=config["device_token"],!token.isEmpty,token.count<4096 else{exit(1)}
+            let signal=DispatchSemaphore(value:0)
+            var success=false
+            let connection=KeychainConnection()
+            connection.save(token){result in
+                if case .success=result{success=true}
+                signal.signal()
+            }
+            signal.wait()
+            if success{print("Device connection saved in Keychain.");exit(0)}
+            FileHandle.standardError.write(Data("Keychain save unavailable. Use the app's Connect/Unlock menu to authorize the connection.\n".utf8));exit(1)
+        }
+        let app=NSApplication.shared;app.setActivationPolicy(.regular)
+        let delegate=CalculatorApp();app.delegate=delegate;app.run()
+    }
+}
+
+#endif
