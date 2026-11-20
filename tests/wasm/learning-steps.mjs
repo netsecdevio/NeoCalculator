@@ -50,8 +50,8 @@ async function checkHistoryContext(browser,engineName) {
   if(path.endsWith('/classes'))data={classes:['101','102'],classLabels:{101:'Precalculus',102:'Algebra 1'}};
   else if(path.endsWith('/models'))data={models:[]};
   else if(path.endsWith('/outputs'))data={outputs:[
-   {outputId:'first',classId:'101',title:'Logarithm practice: explain each step and show how the domain changes',created:'2026-11-20T12:30:00Z'},
-   {outputId:'second',classId:'102',title:'Writing linear equations',created:'2026-11-19T12:30:00Z'},
+   {outputId:'first',classId:'101',version:2,submitted:true,title:'Logarithm practice: explain each step and show how the domain changes',created:'2026-11-20T12:30:00Z'},
+   {outputId:'second',classId:'102',version:1,submitted:false,title:'Writing linear equations',created:'2026-11-19T12:30:00Z'},
   ]};
   else if(path.endsWith('/explain')){sent=route.request().postDataJSON();data={steps:[],sources:[],model:'test'};}
   await route.fulfill({json:data});
@@ -71,6 +71,8 @@ async function checkHistoryContext(browser,engineName) {
  await page.locator('.saved-work-card').first().waitFor();
  assert.equal(await page.getByRole('button',{name:'Open saved work',exact:true}).isVisible(),false);
  assert.equal(await page.locator('.saved-work-card').count(),2);
+ assert.equal(await page.locator('.saved-work-status').first().innerText(),'Submitted for review','persisted submission visible before opening');
+ assert.equal(await page.locator('.saved-work-status').nth(1).innerText(),'Draft saved','persisted draft visible before opening');
  assert.match(await page.locator('.saved-work-card').first().innerText(),/Precalculus/);
  assert.equal(await page.locator('.saved-work-card').first().locator('time').getAttribute('datetime'),'2026-11-20T12:30:00.000Z');
  assert.match(await page.locator('.saved-work-card').nth(1).innerText(),/Algebra 1/);
@@ -207,6 +209,7 @@ try {
    await secondReopened.getByLabel('Show your work or describe your approach').fill('y=3x+5');
    const unloadIsGuarded=()=>page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;});
    assert.equal(await unloadIsGuarded(),true);
+   assert.deepEqual(await page.locator('.saved-work-status').allTextContents(),['Unsaved changes','Unsaved changes']);
    const readsBeforeRefresh=[...outputReads.entries()];
    await page.getByRole('button',{name:'Refresh saved work'}).click();
    await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
