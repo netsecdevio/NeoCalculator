@@ -47,6 +47,8 @@ try {
    await checkParentBoundary(browser);
    const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,problem;
    const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed-revision',classId:'algebra',title:'Your explanation',steps:[{explanation:'Find the slope',math:'m=2',citationIds:[]}],sources:[],answer:'y=2x+12',limitations:[],model:'test/provider'};
+   const secondResult={...result,outputId:'12345678-1234-1234-1234-123456789def',revision:'second-revision',title:'A different explanation',steps:[{explanation:'Use the intercept',math:'b=5',citationIds:[]}],answer:'y=3x+5'};
+   let secondSaved={work:'b=5'},secondVersion=0;
    await page.route('**/api/brainfood/math/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     let data={};
@@ -55,8 +57,15 @@ try {
     else if(path.endsWith('/explain')){problem=request.postDataJSON();data=result;}
     else if(path.endsWith('/feedback')){
      if(failSave){await route.fulfill({status:503,json:{}});return;}
-     const body=request.postDataJSON();assert.equal(body.version,version);saved=body.feedback;submitted=body.submit;data={version:++version,submitted};
-    }else if(path.endsWith('/outputs'))data={outputs:[result]};
+     const body=request.postDataJSON();
+     if(path.includes(secondResult.outputId)) {
+      assert.equal(body.revision,secondResult.revision);assert.equal(body.version,secondVersion);
+      secondSaved=body.feedback;data={version:++secondVersion,submitted:body.submit};
+     }else{
+      assert.equal(body.revision,result.revision);assert.equal(body.version,version);saved=body.feedback;submitted=body.submit;data={version:++version,submitted};
+     }
+    }else if(path.endsWith('/outputs'))data={outputs:[result,secondResult]};
+    else if(path.endsWith(secondResult.outputId))data={...secondResult,output:secondResult,feedback:secondSaved,version:secondVersion,submitted:false};
     else data={...result,output:result,feedback:saved,version,submitted};
     await route.fulfill({json:data});
    });
@@ -78,13 +87,27 @@ try {
    await panel.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
    await page.reload();await page.getByRole('button',{name:'Open saved work'}).click();
    await page.getByRole('button',{name:'Your explanation — algebra'}).click();
-   const reopened=page.locator('.feedback');
+   await page.getByRole('button',{name:'A different explanation — algebra'}).click();
+   const firstContainer=page.locator(`[data-output-id="${result.outputId}"]`);
+   const secondContainer=page.locator(`[data-output-id="${secondResult.outputId}"]`);
+   const reopened=firstContainer.locator('.feedback');
+   const secondReopened=secondContainer.locator('.feedback');
+   assert.equal(await firstContainer.locator('h2').first().textContent(),result.title);
+   assert.equal(await secondContainer.locator('h2').first().textContent(),secondResult.title);
+   assert.equal(await reopened.count(),1);assert.equal(await secondReopened.count(),1);
    assert.equal(await reopened.getByLabel('Step 1 — what helped or confused you?').inputValue(),'Why subtract?');
+   assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'b=5');
+   await secondReopened.getByLabel('Show your work or describe your approach').fill('y=3x+5');
+   await secondReopened.getByRole('button',{name:'Save draft'}).click();
+   await secondReopened.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
+   assert.equal(secondSaved.work,'y=3x+5');assert.equal(secondVersion,1);
+   assert.equal(saved.work,'m=-8/-4');assert.equal(version,1);
    await reopened.getByRole('button',{name:'Submit for review'}).click();
    await reopened.getByRole('status').filter({hasText:'Submitted for review'}).waitFor();
    assert.equal(submitted,true);assert.equal(version,2);
    assert.equal(await reopened.getByLabel('Show your work or describe your approach').isDisabled(),true);
-   console.log(engine.name()+': API routing, failed-save preservation, draft reopening and submission passed');
+   assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').isDisabled(),false);
+   console.log(engine.name()+': API routing, failed-save preservation, separate saved-output editors, draft reopening and submission passed');
   }finally{await browser.close();}
  }
 }finally{await server.close();}

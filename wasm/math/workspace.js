@@ -147,7 +147,7 @@ input.before(classLabel,classSelect);
 loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
 const dirtyPanels=new Set();
 window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
-function mountFeedback(result,saved=null){
+function mountFeedback(result,saved=null,container=null){
   if(!result.outputId||!result.revision)return;
   const panel=document.createElement('section');panel.className='feedback';
   const heading=document.createElement('h2');heading.textContent='Your notes and work';
@@ -181,7 +181,7 @@ function mountFeedback(result,saved=null){
   draft.onclick=()=>send(false);submit.onclick=()=>send(true);panel.append(draft,submit,message);
   // Keep prior work visible even when another explanation is requested.
   if(saved?.submitted){fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
-  explanation.after(panel);
+  if(container)container.append(panel);else explanation.after(panel);
 }
 
 const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Open saved work';
@@ -197,10 +197,11 @@ reopen.onclick=async()=>{
       button.onclick=async()=>{
         try{
           const saved=await loadOutput(item.outputId);
-          const panel=document.createElement('section');const h=document.createElement('h2');h.textContent=saved.output.title;
+          const panel=document.createElement('section');panel.dataset.outputId=item.outputId;
+          const h=document.createElement('h2');h.textContent=saved.output.title;
           panel.append(h);
           for(const step of saved.output.steps){const text=document.createElement('p');text.textContent=step.explanation+' '+(step.math||'');panel.append(text);}
-          savedList.append(panel);mountFeedback({...saved.output,...item},saved);button.disabled=true;
+          savedList.append(panel);mountFeedback({...saved.output,...item},saved,panel);button.disabled=true;
         }catch(error){status.textContent=error.message;}
       };
       savedList.append(button);
