@@ -104,12 +104,13 @@ async function run(action) {
       try {
         const values = await handle.evaluateMany(Array.from({length:721},(_,i)=>-10+i/36));
         if (token !== generation || version !== explanationVersion) return;
-        const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,720,480);
-        ctx.lineWidth=1; ctx.strokeStyle='#dbe5ee';
+        const ctx = canvas.getContext('2d'),theme=getComputedStyle(canvas);
+        ctx.fillStyle=theme.getPropertyValue('--silas-graph-bg').trim();ctx.fillRect(0,0,720,480);
+        ctx.lineWidth=1; ctx.strokeStyle=theme.getPropertyValue('--silas-graph-grid').trim();
         for(let i=0;i<=20;i++){ctx.beginPath();ctx.moveTo(i*36,0);ctx.lineTo(i*36,480);ctx.moveTo(0,i*24);ctx.lineTo(720,i*24);ctx.stroke();}
-        ctx.strokeStyle='#64788d';ctx.beginPath();ctx.moveTo(360,0);ctx.lineTo(360,480);ctx.moveTo(0,240);ctx.lineTo(720,240);ctx.stroke();
-        ctx.fillStyle='#334d67';ctx.font='12px system-ui';for(let n=-10;n<=10;n+=2){if(n){ctx.fillText(String(n),360+n*36+2,254);ctx.fillText(String(n),364,240-n*24-3);}}
-        ctx.strokeStyle='#145a87';ctx.lineWidth=2;ctx.beginPath();let previous=null;
+        ctx.strokeStyle=theme.getPropertyValue('--silas-graph-axes').trim();ctx.beginPath();ctx.moveTo(360,0);ctx.lineTo(360,480);ctx.moveTo(0,240);ctx.lineTo(720,240);ctx.stroke();
+        ctx.fillStyle=theme.getPropertyValue('--silas-graph-axes').trim();ctx.font='12px "JetBrains Mono", monospace';for(let n=-10;n<=10;n+=2){if(n){ctx.fillText(String(n),360+n*36+2,254);ctx.fillText(String(n),364,240-n*24-3);}}
+        ctx.strokeStyle=theme.getPropertyValue('--silas-graph-line').trim();ctx.lineWidth=2;ctx.beginPath();let previous=null;
         values.forEach((v,i)=>{const y=240-v.value*24;if(v.kind!=='finite'||!Number.isFinite(y)||Math.abs(v.value)>10){previous=null;return;}if(previous!==null&&Math.abs(y-previous)<120)ctx.lineTo(i,y);else ctx.moveTo(i,y);previous=y;});ctx.stroke();canvas.hidden=false;
         document.querySelector('#graph-description').textContent='y = '+expression+'; viewing x and y from −10 to 10. Large jumps are left disconnected.';
       } finally { await handle.dispose().catch(()=>{}); }
@@ -143,12 +144,26 @@ for(const id of ["learning-context","teaching-model"]) document.getElementById(i
 
 const classSelect=document.createElement('select');classSelect.id='learning-class';
 const classLabel=document.createElement('label');classLabel.htmlFor='learning-class';classLabel.textContent='Your class';
-input.before(classLabel,classSelect);
-loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
+document.querySelector('label[for="expression"]').before(classLabel,classSelect);
+loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=data.classLabels?.[id]||id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
 const dirtyPanels=new Set();
+// Open editors are independent of the refreshable saved-work index. One editor
+// owns each output's draft/version for the lifetime of this page.
+const openedEditors=new Map(),pendingReopens=new Set();
+const workEditors=document.createElement('div');workEditors.id='opened-work';
+explanation.after(workEditors);
+function focusEditor(editor){editor.scrollIntoView({block:'nearest'});(editor.querySelector('textarea:not(:disabled),select:not(:disabled),button:not(:disabled)')||editor).focus({preventScroll:true});}
 window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
-function mountFeedback(result,saved=null){
+function mountFeedback(result,saved=null,container=null){
   if(!result.outputId||!result.revision)return;
+  if(openedEditors.has(result.outputId)){focusEditor(openedEditors.get(result.outputId));return;}
+  if(!container){
+    container=document.createElement('section');container.dataset.outputId=result.outputId;
+    const title=document.createElement('h2');title.textContent=result.title;container.append(title);
+  }
+  container.tabIndex=-1;
+  const editorTitle=container.querySelector('h2');
+  if(editorTitle){editorTitle.id='saved-output-title-'+result.outputId;container.setAttribute('aria-labelledby',editorTitle.id);}
   const panel=document.createElement('section');panel.className='feedback';
   const heading=document.createElement('h2');heading.textContent='Your notes and work';
   const description=document.createElement('p');description.textContent='Class: '+result.classId+'. Notes stay attached to this explanation.';
@@ -167,7 +182,7 @@ function mountFeedback(result,saved=null){
   }
   let version=saved?.version||0,editing=0;panel.addEventListener('input',()=>{dirtyPanels.add(panel);editing++;});
   const message=document.createElement('p');message.setAttribute('role','status');
-  const draft=document.createElement('button'),submit=document.createElement('button');draft.textContent='Save draft';submit.textContent='Submit for review';
+  const draft=document.createElement('button'),submit=document.createElement('button');draft.type=submit.type='button';draft.textContent='Save draft';submit.textContent='Submit for review';
   async function send(submitted){
     draft.disabled=submit.disabled=true;fields.forEach(f=>f.disabled=true);const snapshot=editing;
     try{
@@ -181,29 +196,42 @@ function mountFeedback(result,saved=null){
   draft.onclick=()=>send(false);submit.onclick=()=>send(true);panel.append(draft,submit,message);
   // Keep prior work visible even when another explanation is requested.
   if(saved?.submitted){fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
-  explanation.after(panel);
+  container.append(panel);workEditors.append(container);openedEditors.set(result.outputId,container);
 }
 
-const reopen=document.createElement('button');reopen.textContent='Open saved work';
-const savedList=document.createElement('div');savedList.setAttribute('aria-live','polite');
+const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Open saved work';
+const savedList=document.createElement('div');savedList.id='saved-work-index';savedList.setAttribute('aria-live','polite');
 classSelect.after(reopen,savedList);
+let savedListVersion=0;
 reopen.onclick=async()=>{
-  savedList.replaceChildren();
+  const request=++savedListVersion;reopen.disabled=true;savedList.setAttribute('aria-busy','true');
   try{
     const {outputs}=await loadOutputs();
-    if(!outputs.length)savedList.textContent='No saved explanations yet.';
+    if(request!==savedListVersion)return;
+    const index=document.createDocumentFragment();
+    if(!outputs.length)index.append(document.createTextNode('No saved explanations yet.'));
     for(const item of outputs){
-      const button=document.createElement('button');button.textContent=item.title+' — '+item.classId;
+      const button=document.createElement('button');button.type='button';button.textContent=item.title+' — '+item.classId;
       button.onclick=async()=>{
+        if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
+        if(pendingReopens.has(item.outputId))return;
+        pendingReopens.add(item.outputId);button.disabled=true;
         try{
           const saved=await loadOutput(item.outputId);
-          const panel=document.createElement('section');const h=document.createElement('h2');h.textContent=saved.output.title;
+          // A generated explanation or another view may have opened this output
+          // while its saved snapshot was loading. Never replace its current draft.
+          if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
+          const panel=document.createElement('section');panel.dataset.outputId=item.outputId;
+          const h=document.createElement('h2');h.textContent=saved.output.title;
           panel.append(h);
           for(const step of saved.output.steps){const text=document.createElement('p');text.textContent=step.explanation+' '+(step.math||'');panel.append(text);}
-          savedList.append(panel);mountFeedback({...saved.output,...item},saved);button.disabled=true;
+          mountFeedback({...saved.output,...item},saved,panel);
         }catch(error){status.textContent=error.message;}
+        finally{pendingReopens.delete(item.outputId);button.disabled=false;}
       };
-      savedList.append(button);
+      index.append(button);
     }
-  }catch(error){savedList.textContent=error.message;}
+    savedList.replaceChildren(index);
+  }catch(error){if(request===savedListVersion)savedList.textContent=error.message;}
+  finally{if(request===savedListVersion){reopen.disabled=false;savedList.removeAttribute('aria-busy');}}
 };

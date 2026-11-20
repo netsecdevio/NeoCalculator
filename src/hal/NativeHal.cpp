@@ -3840,7 +3840,7 @@ static int emulatorInitialize(int argc, char** argv)
 #endif
 
     g_window = SDL_CreateWindow(
-        "NumOS Simulator",
+        "silascalc simulator",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         SCREEN_W * g_opts.windowScale, SCREEN_H * g_opts.windowScale,
         SDL_WINDOW_SHOWN

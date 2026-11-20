@@ -1,29 +1,7 @@
-# Ignore-rect mask for calc_1_plus_2 (NumOS SDL2 emulator visual test).
-#
-# Reason: the ONLY region that differs across separate launches on this screen is
-# the StatusBar clock. The clock label is drawn by StatusBar::updateClock() from
-# the real wall clock (time() -> localtime -> "%02d:%02d", src/ui/StatusBar.cpp),
-# so HH:MM reflects the minute/hour each scripted run executes on; a golden blessed
-# at one time vs a candidate generated at another differ inside the clock glyphs.
-# (The CalculationApp input cursor does NOT contribute: in --deterministic mode the
-# blink phase is a function of the frame index, so it is byte-identical run-to-run —
-# only the wall-clock-driven clock varies. The earlier "cursor band" framing of
-# this mask was a misdiagnosis; the empirical cross-launch diff is the clock.)
-# This is expected per-minute UI nondeterminism, NOT a renderer bug — the renderer
-# is frozen, so it is masked in the comparator instead of edited in src/.
-#
-# Region: the clock label is aligned LV_ALIGN_LEFT_MID,6 in lv_font_montserrat_12
-# (StatusBar.cpp:61-65) and is always exactly 5 glyphs ("HH:MM"), so its box spans
-# ~x[6..38] y[8..16]. A golden-vs-fresh-candidate diff put the changed pixels at
-# x[6..37] y[8..16] (32x9). The previous rect 8,6,30,13 (x[8..37]) missed the
-# clock's left edge x[6..7], which leaked outside the mask and FAILED CI; this rect
-# is the shared StatusBar clock band used by settings_smoke / math_showcase_smoke.
-#
-# Rect = full HH:MM label box (~x[6..38] y[8..16]) padded ~2px on each side ->
-# x[4..40] y[6..18]. It is a superset of the old 8,6,30,13, so it cannot regress
-# coverage; it masks only the clock — the app title is centered (x~160), the
-# battery/angle/modifier are right-aligned (x>240), and the typed expression /
-# computed result are rendered below the y=24 StatusBar separator.
-#
-# x,y,w,h
-4,6,37,13
+# Live HH:MM clock only; every other pixel remains byte-gated.
+# StatusBar.cpp now aligns the clock RIGHT_MID at -70 (upstream e768f9c).
+# Glyphs occupy approximately x219..249, y8..16; this rectangle preserves
+# the former 37x13 mask area at the new location, away from title and RAD.
+# The old left-side rectangle is removed. User approved the current UI
+# reference on 2026-11-20; source images: PR7 CI run 43110948963.
+215,6,37,13

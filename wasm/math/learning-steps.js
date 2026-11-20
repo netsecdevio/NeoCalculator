@@ -2,8 +2,10 @@
 const pending = new Map();
 const params = new URLSearchParams(window.location.search);
 const parentOrigin = params.get('parentOrigin') || window.location.origin;
+const trustedParents = new Set(['http://127.0.0.1:1420','http://localhost:1420','http://tauri.localhost','https://tauri.localhost','tauri://localhost','https://brainfood.silas-ai.io']);
+const parentTransport = params.get('transport')==='parent' && window.parent!==window;
 window.addEventListener('message', event => {
-  if (event.source !== window.parent || event.origin !== parentOrigin) return;
+  if (!parentTransport || !trustedParents.has(parentOrigin) || event.source !== window.parent || event.origin !== parentOrigin) return;
   const message=event.data;
   if (!message || message.type!=='brainfood-math-response' || !pending.has(message.id)) return;
   const job=pending.get(message.id);pending.delete(message.id);clearTimeout(job.timer);
@@ -11,7 +13,8 @@ window.addEventListener('message', event => {
   else job.resolve(message.data);
 });
 async function request(action, body) {
-  if(new URLSearchParams(window.location.search).get('transport')==='parent' && window.parent!==window) {
+  if(parentTransport) {
+    if(!trustedParents.has(parentOrigin)) throw Error('This calculator embedding is not trusted. Open it from Brainfood.');
     const id=crypto.randomUUID();
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{pending.delete(id);reject(Error('Teaching help timed out. Please try again.'));},180000);
