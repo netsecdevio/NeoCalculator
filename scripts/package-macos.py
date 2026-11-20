@@ -18,6 +18,10 @@ parser.add_argument("--dependency-prefix", type=Path, help="Isolated rebuilt nat
 parser.add_argument("--notary-profile", help="Existing notarytool Keychain profile name; never pass a password here")
 parser.add_argument("--dmg", type=Path, help="Create a drag-to-Applications installer disk image")
 args = parser.parse_args()
+if any(parent.suffix.lower() == ".app" for parent in args.destination.resolve().parents):
+    parser.error("Choose an app destination outside any existing app bundle")
+if args.dmg and any(parent.suffix.lower() == ".app" for parent in args.dmg.resolve().parents):
+    parser.error("Choose a disk image destination outside any app bundle")
 if args.notary_profile and (args.development or not args.dmg):
     parser.error("Notarization requires --sign-identity and --dmg")
 if args.dmg and (args.dmg.suffix != ".dmg" or args.dmg.exists()):

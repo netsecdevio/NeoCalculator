@@ -11,6 +11,17 @@ else: raise AssertionError("Unknown build architecture accepted")
 def run(*args): subprocess.run([str(x) for x in args], check=True, stdout=subprocess.DEVNULL)
 with tempfile.TemporaryDirectory(prefix="silascalc-package-test-") as folder:
     root = Path(folder); prefix = root / "prefix"; (prefix / "lib").mkdir(parents=True)
+    protected = root / "Existing.APP"; protected.mkdir()
+    (protected / "sentinel").write_text("keep")
+    alias = root / "bundle-alias"; alias.symlink_to(protected, target_is_directory=True)
+    for base in (protected, alias):
+        for command in (["python3", str(repo / "scripts/build-macos-universal.py"), "--output", str(base / "build")],
+                        ["python3", str(repo / "scripts/package-macos.py"), str(root / "unused-binary"), str(base / "nested.app"), "--development"],
+                        ["python3", str(repo / "scripts/package-macos.py"), str(root / "unused-binary"), str(root / "unused.app"), "--development", "--dmg", str(base / "installer.dmg")]):
+            rejected = subprocess.run(command, capture_output=True, text=True)
+            assert rejected.returncode == 2 and "app" in rejected.stderr
+            assert list(protected.iterdir()) == [protected / "sentinel"]
+            assert (protected / "sentinel").read_text() == "keep"
     (root / "library.c").write_text("int fixture_value(void){return 42;}\n")
     (root / "main.c").write_text("extern int fixture_value(void); int main(void){return fixture_value()==42?0:1;}\n")
     for name in ("libSDL3.dylib", "libSDL2.dylib"):
