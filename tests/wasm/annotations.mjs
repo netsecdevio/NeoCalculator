@@ -26,6 +26,14 @@ try {for(const engine of [chromium,webkit]){
     const panel=page.locator('.feedback');await panel.waitFor();
     assert.equal(await panel.locator('textarea').count(),3,'one hidden composer plus work/comment, not a box for every step');
     await panel.getByRole('button',{name:'Annotate',exact:true}).click();
+    await panel.getByRole('button',{name:'Comment on step 1',exact:true}).click();
+    await panel.getByRole('button',{name:'Save draft',exact:true}).click();
+    await panel.getByRole('button',{name:'Submit for review',exact:true}).click();
+    assert.equal(version,0,'an empty open composer blocks both saving and submission');
+    await panel.getByLabel('Your comment',{exact:true}).fill('   ');
+    await panel.getByRole('button',{name:'Save draft',exact:true}).click();
+    assert.equal(version,0,'whitespace cannot bypass the pending-comment guard');
+    await panel.getByRole('button',{name:'Cancel',exact:true}).click();
     // Select actual text after an emoji: persisted offsets must be UTF-16.
     await panel.locator('.annotation-text').evaluate(node=>{const range=document.createRange();range.setStart(node.firstChild,3);range.setEnd(node.firstChild,17);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);node.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));});
     await panel.getByLabel('Your comment',{exact:true}).fill('Why this slope? <img src=x onerror=alert(1)>');
@@ -42,10 +50,19 @@ try {for(const engine of [chromium,webkit]){
     await panel.getByLabel('Your comment',{exact:true}).fill('Is this where the line crosses?');
     await panel.getByRole('button',{name:'Add comment',exact:true}).click();
     assert.equal(await panel.locator('.graph-pin').count(),1);
+    // Arbitrary coordinates are available without a pointer or fixed center.
+    await panel.getByLabel('Graph x coordinate',{exact:true}).focus();
+    await page.keyboard.press('ControlOrMeta+A');await page.keyboard.type('-3.5');
+    await page.keyboard.press('Tab');await page.keyboard.press('ControlOrMeta+A');await page.keyboard.type('4');
+    await page.keyboard.press('Tab');await page.keyboard.press('Enter');
+    await panel.getByLabel('Your comment',{exact:true}).fill('Keyboard-selected graph point');
+    await panel.getByRole('button',{name:'Add comment',exact:true}).click();
+    assert.equal(await panel.locator('.graph-pin').count(),2);
     await panel.getByRole('button',{name:'Save draft',exact:true}).click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.feedback [role=status]')].some(n=>n.textContent==='Draft saved.'));
-    assert.equal(feedback.annotationFormat,2);assert.equal(feedback.annotations.length,2);assert.deepEqual(feedback.annotations[0].anchor,{kind:'text',start:3,end:17,quote:'Find the slope'});
+    assert.equal(feedback.annotationFormat,2);assert.equal(feedback.annotations.length,3);assert.deepEqual(feedback.annotations[0].anchor,{kind:'text',start:3,end:17,quote:'Find the slope'});
     assert.equal(feedback.graph.expression,'2*x+12');assert.equal(feedback.annotations[1].anchor.kind,'graph');assert.ok(feedback.annotations[1].anchor.x>0&&feedback.annotations[1].anchor.x<1);
+    assert.deepEqual(feedback.annotations[2].anchor,{kind:'graph',x:0.325,y:0.3});
     const anchor=feedback.annotations[1].anchor;
     let releaseStartup;const startupGate=new Promise(resolve=>{releaseStartup=resolve;});
     await page.route('**/numos-math-assets.json?*',async route=>{await startupGate;await route.continue();});
@@ -53,13 +70,30 @@ try {for(const engine of [chromium,webkit]){
     await panel.getByRole('status').filter({hasText:'Drawing graph…'}).waitFor();
     releaseStartup();
     await panel.locator('.annotation-graph').waitFor({state:'visible'});
-    await panel.locator('.graph-pin').waitFor();assert.equal(await panel.locator('mark').innerText(),'Find the slope');
-    assert.equal(await panel.locator('.annotation-list li').count(),2);
+    await panel.locator('.graph-pin').first().waitFor();assert.equal(await panel.locator('mark').innerText(),'Find the slope');
+    assert.equal(await panel.locator('.annotation-list li').count(),3);
     for(const width of [320,768,1024,1440]){
       await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no page overflow at '+width);
-      const pin=await panel.locator('.graph-pin').evaluate(node=>({left:parseFloat(node.style.left),top:parseFloat(node.style.top)}));
+      const pin=await panel.locator('.graph-pin').first().evaluate(node=>({left:parseFloat(node.style.left),top:parseFloat(node.style.top)}));
       assert.ok(Math.abs(pin.left-anchor.x*100)<0.001,JSON.stringify({pin,anchor}));assert.ok(Math.abs(pin.top-anchor.y*100)<0.001,JSON.stringify({pin,anchor}));
     }
+    await panel.locator('.annotation-graph-tools summary').click();
+    await panel.getByLabel('Graph expression',{exact:true}).fill('');
+    const beforeClear=version;
+    await panel.getByRole('button',{name:'Save draft',exact:true}).click();
+    assert.equal(version,beforeClear,'blank graph input must not silently save the old graph');
+    await panel.getByRole('button',{name:'Remove graph',exact:true}).click();
+    assert.equal(await panel.locator('.annotation-graph').isVisible(),true,'graph comments protect their graph until explicitly removed');
+    assert.equal(await panel.locator('.graph-pin').count(),2);
+    await panel.getByRole('button',{name:'Remove comment 3',exact:true}).click();
+    await panel.getByRole('button',{name:'Remove comment 2',exact:true}).click();
+    await panel.getByRole('button',{name:'Remove graph',exact:true}).click();
+    assert.equal(await panel.locator('.annotation-graph').isVisible(),false);
+    await panel.getByRole('button',{name:'Save draft',exact:true}).click();
+    await page.waitForFunction(()=>[...document.querySelectorAll('.feedback [role=status]')].some(n=>n.textContent==='Draft saved.'));
+    assert.equal(version,beforeClear+1);assert.equal(feedback.graph,undefined);assert.equal(feedback.annotations.length,1);
+    await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line — algebra',exact:true}).click();
+    await panel.waitFor();assert.equal(await panel.locator('.annotation-graph').isVisible(),false);assert.equal(await panel.locator('.graph-pin').count(),0);
     await panel.getByRole('button',{name:'Submit for review',exact:true}).click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.feedback [role=status]')].some(n=>n.textContent==='Submitted for review.'));
     assert.equal(submitted,true);assert.equal(await panel.getByRole('button',{name:'Annotate',exact:true}).isDisabled(),true);

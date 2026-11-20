@@ -69,6 +69,8 @@ a { color: var(--silas-accent); text-underline-offset: 3px; }
 .annotation-composer textarea { min-height: 96px; }
 .annotation-graph { position: relative; margin-top: 16px; }
 .annotation-graph canvas { display: block; }
+.annotation-point-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 12px; }
+.annotation-point-controls label { flex: 1 1 120px; min-width: 0; margin: 0; }
 .graph-pins { position: absolute; inset: 0; pointer-events: none; }
 .graph-pin { position: absolute; pointer-events: auto; transform: translate(-50%, -50%); min-height: 44px; min-width: 44px; padding: 6px; border-radius: 50%; background: var(--silas-action); color: var(--silas-action-text); }
 .feedback .annotation-list button, .feedback .annotation-composer button { margin: 4px 4px 0 0; }

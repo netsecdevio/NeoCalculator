@@ -61,8 +61,25 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
   const graphWrap=element('div',undefined,'annotation-graph');graphWrap.hidden=true;
   const graphCanvas=element('canvas');graphCanvas.width=720;graphCanvas.height=480;graphCanvas.setAttribute('aria-label','Attached graph, x and y from negative ten to ten');
   const pinLayer=element('div',undefined,'graph-pins'),graphCaption=element('p',undefined,'annotation-hint');
-  const center=button('Comment at graph center',()=>start({anchor:{kind:'graph',x:0.5,y:0.5}}));
-  graphWrap.append(graphCanvas,pinLayer);graphDetails.append(graphLabel,plot);lesson.append(graphDetails,graphWrap,graphCaption,center);center.hidden=true;
+  const pointControls=element('div',undefined,'annotation-point-controls');pointControls.hidden=true;
+  const xLabel=element('label','Graph x coordinate'),yLabel=element('label','Graph y coordinate');
+  const pointX=element('input'),pointY=element('input');
+  for(const input of [pointX,pointY]){input.type='number';input.min='-10';input.max='10';input.step='any';input.value='0';}
+  xLabel.append(pointX);yLabel.append(pointY);
+  const pointButton=button('Comment at graph point',()=>{
+    if(locked||!graph)return;
+    for(const input of [pointX,pointY])if(!input.value.trim()||!Number.isFinite(Number(input.value))||Math.abs(Number(input.value))>10){message.textContent='Choose x and y coordinates between −10 and 10.';input.focus();return;}
+    start({anchor:{kind:'graph',x:(Number(pointX.value)+10)/20,y:(10-Number(pointY.value))/20}});
+  });
+  const removeGraph=button('Remove graph',()=>{
+    if(locked||graphBusy)return;
+    if(pending){message.textContent='Add or cancel your current comment first.';return;}
+    if(notes.some(n=>n.anchor?.kind==='graph')){message.textContent='Remove the graph comments before removing their graph.';return;}
+    graph=null;graphInput.value='';graphWrap.hidden=true;pointControls.hidden=true;removeGraph.hidden=true;graphCaption.textContent='';
+    graphCanvas.getContext('2d').clearRect(0,0,720,480);renderPins();onChange();message.textContent='Graph removed.';
+  });removeGraph.hidden=true;
+  pointControls.append(xLabel,yLabel,pointButton);
+  graphWrap.append(graphCanvas,pinLayer);graphDetails.append(graphLabel,plot,removeGraph);lesson.append(graphDetails,graphWrap,graphCaption,pointControls);
   graphCanvas.addEventListener('pointerup',event=>{
     if(!active||locked||!graph)return;
     const rect=graphCanvas.getBoundingClientRect();
@@ -74,7 +91,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
     try{
       await renderGraph(draftCanvas,next.expression);
       if(generation!==graphGeneration)return;
-      graphCanvas.getContext('2d').drawImage(draftCanvas,0,0);graph={...next};graphWrap.hidden=false;center.hidden=false;
+      graphCanvas.getContext('2d').drawImage(draftCanvas,0,0);graph={...next};graphWrap.hidden=false;pointControls.hidden=false;removeGraph.hidden=false;
       graphCaption.textContent='y = '+graph.expression+' · x and y: −10 to 10';graphDetails.open=false;message.textContent=locked?'Saved graph restored.':'Graph attached. Turn on Annotate to place a comment.';
       if(changed)onChange();renderPins();
     }catch(error){if(generation===graphGeneration)message.textContent='Graph could not be drawn. '+error.message;}
@@ -129,7 +146,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
   renderNotes();if(graph)void draw(graph,false);
   return {
     value:()=>({annotationFormat:2,annotations:structuredClone(notes),...(graph?{graph:{...graph}}:{})}),
-    pending:()=>Boolean(pending&&text.value.trim())||graphBusy||Boolean(graphInput.value.trim()&&graphInput.value.trim().replace(/^y\s*=\s*/i,'')!==graph?.expression),
-    setDisabled(value){locked=value;toggle.disabled=value;plot.disabled=value||graphBusy;graphInput.disabled=value;center.disabled=value;add.disabled=cancel.disabled=text.disabled=value;renderNotes();if(value){active=false;refreshMode();}},
+    pending:()=>pending!==null||graphBusy||graphInput.value.trim().replace(/^y\s*=\s*/i,'')!==(graph?.expression||''),
+    setDisabled(value){locked=value;toggle.disabled=value;plot.disabled=value||graphBusy;graphInput.disabled=value;pointX.disabled=pointY.disabled=pointButton.disabled=removeGraph.disabled=value;add.disabled=cancel.disabled=text.disabled=value;renderNotes();if(value){active=false;refreshMode();}},
   };
 }

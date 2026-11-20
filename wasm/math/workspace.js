@@ -179,7 +179,7 @@ function mountFeedback(result,saved=null,container=null){
   const message=document.createElement('p');message.setAttribute('role','status');
   const draft=document.createElement('button'),submit=document.createElement('button');draft.type=submit.type='button';draft.textContent='Save draft';submit.textContent='Submit for review';
   async function send(submitted){
-    if(annotations.pending()){message.textContent='Add or cancel your open comment. Draw any changed graph expression, or clear it, before saving.';return;}
+    if(annotations.pending()){message.textContent='Add or cancel your open comment. Draw any changed graph expression, or use Remove graph, before saving.';return;}
     annotations.setDisabled(true);
     draft.disabled=submit.disabled=true;fields.forEach(f=>f.disabled=true);const snapshot=editing;
     try{
