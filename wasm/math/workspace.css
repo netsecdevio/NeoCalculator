@@ -10,7 +10,7 @@ h1 { font: 600 clamp(28px, 5vw, 36px)/1.15 var(--silas-font); letter-spacing: -.
 .intro { margin: 24px 0 0; font-size: 18px; }
 h2 { font-size: 20px; line-height: 1.35; margin-top: 0; }
 p { max-width: 75ch; }
-form, #explanation, .feedback, #saved-work { padding: 24px; border: 1px solid var(--silas-border); border-radius: var(--silas-radius); background: var(--silas-surface); }
+form, #explanation, .feedback { padding: 24px; border: 1px solid var(--silas-border); border-radius: var(--silas-radius); background: var(--silas-surface); }
 label { display: block; font-size: 14px; font-weight: 600; margin-top: 16px; }
 label:first-child { margin-top: 0; }
 input, textarea, select { display: block; width: 100%; margin: 8px 0 16px; border: 1px solid var(--silas-border); border-radius: 8px; padding: 12px 14px; background: var(--silas-field); color: var(--silas-text); font: inherit; }
@@ -31,13 +31,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 #status { margin: 20px 0 12px; padding-left: 14px; border-left: 3px solid var(--silas-accent); font-size: 14px; }
 #answer { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 26px; line-height: 1.6; margin: 16px 0 24px; }
 #answer:empty { display: none; }
-#explanation, .feedback, #saved-work { margin: 20px 0; }
+#explanation, .feedback { margin: 20px 0; }
 #explanation li { padding: 6px 0 12px; }
 #explanation li::marker { color: var(--silas-accent); font-weight: 600; }
 .step-math { padding: 10px 14px; background: var(--silas-field); border-radius: 8px; font-weight: 400; overflow-wrap: anywhere; }
 .feedback button + button { margin-left: 8px; }
 .feedback [role="status"] { font-weight: 600; }
-#saved-work section { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--silas-border); }
+#opened-work > section { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--silas-border); }
 canvas { width: 100%; height: auto; background: var(--silas-graph-bg); border: 1px solid var(--silas-border); border-radius: var(--silas-radius); }
 details { border-top: 1px solid var(--silas-border); padding-top: 18px; margin-top: 24px; }
 .learning-options { margin: 16px 0 0; padding-top: 14px; }
@@ -50,7 +50,7 @@ a { color: var(--silas-accent); text-underline-offset: 3px; }
 [hidden] { display: none !important; }
 @media (max-width: 520px) {
   main { padding: 20px 14px 32px; }
-  form, #explanation, .feedback, #saved-work { padding: 18px 16px; }
+  form, #explanation, .feedback { padding: 18px 16px; }
   .brand img { width: 52px; height: 52px; border-radius: 12px; }
   .intro { font-size: 16px; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; }
