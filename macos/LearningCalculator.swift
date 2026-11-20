@@ -190,7 +190,7 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
             }
         }}
     }
-    func connectionMessage(_ title:String,_ detail:String){let alert=NSAlert();alert.messageText=title;alert.informativeText=detail;alert.addButton(withTitle:"OK");alert.runModal()}
+    func connectionMessage(_ title:String,_ detail:String){let alert=NSAlert();alert.messageText=title;alert.informativeText=detail;alert.addButton(withTitle:"OK");alert.beginSheetModal(for:window)}
     func webView(_ webView:WKWebView,decidePolicyFor action:WKNavigationAction,decisionHandler:@escaping(WKNavigationActionPolicy)->Void){
         guard let url=action.request.url else{decisionHandler(.cancel);return}
         if url.absoluteString.hasPrefix((localHost ?? "invalid")+"/"){decisionHandler(.allow);return}

@@ -95,7 +95,7 @@ while queue:
             source = Path(dependency).resolve()
             if args.dependency_prefix and not source.is_relative_to(args.dependency_prefix.resolve()):
                 raise SystemExit("Native dependency escapes isolated prefix: " + dependency)
-        bundled = frameworks / source.name
+        bundled = copied.get(source, frameworks / source.name)
         if source not in copied:
             if bundled.exists():
                 raise SystemExit("Conflicting dependency names: " + source.name)
@@ -103,7 +103,7 @@ while queue:
             copied[source] = bundled
             queue.append(bundled)
             subprocess.run(["install_name_tool", "-id", "@executable_path/../Frameworks/" + source.name, str(bundled)], check=True)
-        subprocess.run(["install_name_tool", "-change", dependency, "@executable_path/../Frameworks/" + source.name, str(target)], check=True)
+        subprocess.run(["install_name_tool", "-change", dependency, "@executable_path/../Frameworks/" + bundled.name, str(target)], check=True)
 launcher = mac / "NeoCalculator"
 launcher.write_text('#!/bin/sh\nset -eu\napp_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nstate_dir="$HOME/Library/Application Support/NeoCalculator"\nmkdir -p "$state_dir"\ncd "$state_dir"\nexport DYLD_LIBRARY_PATH="$app_dir/../Frameworks"\nexec "$app_dir/numos" "$@"\n')
 launcher.chmod(0o755)
