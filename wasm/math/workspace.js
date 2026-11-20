@@ -146,7 +146,7 @@ const classContext=document.querySelector('#class-context');
 classContext.setAttribute('role','status');
 const retryClasses=document.createElement('button');retryClasses.type='button';retryClasses.textContent='Retry classes';retryClasses.hidden=true;
 classContext.after(retryClasses);
-let loadingClasses=false,lastClassError='';
+let loadingClasses=false;
 async function refreshClasses(){
   if(loadingClasses)return;
   loadingClasses=true;retryClasses.disabled=true;classSelect.disabled=true;
@@ -165,12 +165,9 @@ async function refreshClasses(){
     if(classNames.has(preferred))classSelect.value=preferred;
     updateClassContext();
     retryClasses.hidden=true;
-    if(lastClassError&&status.textContent===lastClassError)status.textContent=data.classes.length?'Classes loaded.':'No class is linked to this account yet.';
-    lastClassError='';
     if(!data.classes.length)classContext.textContent='No class is linked to this account yet. Ask your parent or teacher to link one.';
   }catch(error){
-    classContext.textContent='Could not load your classes. Check your Silas connection, then retry.';
-    lastClassError=error.message;status.textContent=lastClassError;
+    classContext.textContent='Could not load your classes. Check your Silas connection, then retry. '+error.message;
     retryClasses.hidden=false;
   }finally{loadingClasses=false;retryClasses.disabled=false;classSelect.disabled=!classSelect.options.length;}
 }

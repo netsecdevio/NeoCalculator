@@ -51,7 +51,8 @@ async function checkClassRetry(browser) {
    attempts++;
    if(!allow){await route.fulfill({status:503,json:{}});return;}
    await retryGate;data={classes:['algebra'],classLabels:{algebra:'Algebra 1'}};
-  }else if(path.endsWith('/models'))data={models:[]};
+  }else if(path.endsWith('/explain')){await route.fulfill({status:503,json:{}});return;}
+  else if(path.endsWith('/models'))data={models:[]};
   else if(path.endsWith('/outputs'))data={outputs:[output]};
   else data={...output,output,feedback:{work:'Previous draft'},version:1,submitted:false};
   await route.fulfill({json:data});
@@ -64,16 +65,21 @@ async function checkClassRetry(browser) {
  await page.getByRole('button',{name:'Open saved work',exact:true}).click();
  await page.getByRole('button',{name:'Earlier work',exact:true}).click();
  const editor=page.locator('.feedback');await editor.getByLabel('Show your work or describe your approach').fill('Keep my unsaved working');
+ const failedRetry=page.waitForResponse(response=>response.url().endsWith('/classes')&&response.status()===503);
  await page.getByRole('button',{name:'Retry classes',exact:true}).click();
+ await failedRetry;
  await page.waitForFunction(()=>document.querySelector('#class-context').textContent.startsWith('Could not'));
  assert.equal(attempts,2,'failed retry remains available');
+ await page.getByRole('button',{name:'Explain steps',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent==='Teaching help is temporarily unavailable. Your problem has not been rejected.');
+ const explainError=await page.locator('#status').innerText();
  allow=true;await page.getByRole('button',{name:'Retry classes',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'Retry classes',exact:true}).isDisabled(),true);
  assert.equal(await editor.getByLabel('Show your work or describe your approach').inputValue(),'Keep my unsaved working');
  releaseRetry();await page.waitForFunction(()=>document.querySelector('#class-context').textContent==='Working in Algebra 1');
  assert.equal(await page.getByRole('button',{name:'Retry classes',exact:true}).isVisible(),false);
  assert.equal(await page.locator('#learning-class option').count(),1);
- assert.equal(await page.locator('#status').innerText(),'Classes loaded.');
+ assert.equal(await page.locator('#status').innerText(),explainError,'class recovery must not erase an identical error from Explain');
  assert.equal(await page.locator('#learning-class').isDisabled(),false);
  assert.equal(await page.locator('#learning-context').inputValue(),'Teacher directions');
  assert.equal(await page.locator('#expression').inputValue(),'Find the slope');
