@@ -97,10 +97,11 @@ final class LocalCalculatorServer {
         c.send(content:data,completion:.contentProcessed{_ in c.cancel()})
     }
 }
-final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
+class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
     var window:NSWindow!;var server:LocalCalculatorServer!;var localHost:String?;var workspace:WKWebView?
     var pairingInFlight=false
-    let credentials=KeychainConnection()
+    let credentials:KeychainConnection
+    init(credentials:KeychainConnection=KeychainConnection()){self.credentials=credentials;super.init()}
     var pendingToken:String?
     let pairingSession=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     func applicationDidFinishLaunching(_ note:Notification){
@@ -154,7 +155,7 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
                 }
             }
             DispatchQueue.main.async {
-                self.pairingInFlight=false;self.window.title="silascalc"
+                self.pairingInFlight=false;self.window?.title="silascalc"
                 if let token=acceptedToken {self.pendingToken=token;self.persistConnection(interactive:false)}
                 else{self.connectionMessage("Connection not completed",message)}
             }
@@ -162,12 +163,12 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
     }
     func persistConnection(interactive:Bool) {
         guard !pairingInFlight,let token=pendingToken else{return}
-        pairingInFlight=true;window.title="silascalc — Saving connection…"
+        pairingInFlight=true;window?.title="silascalc — Saving connection…"
         credentials.save(token,interactive:interactive){result in DispatchQueue.main.async {
-            self.pairingInFlight=false;self.window.title="silascalc"
+            self.pairingInFlight=false;self.window?.title="silascalc"
             switch result {
             case .success:
-                self.pendingToken=nil;self.workspace?.reload()
+                self.pendingToken=nil;self.reloadWorkspace()
                 self.connectionMessage("Connected to Silas","Your connection is saved securely on this Mac.")
             case .failure(let failure):
                 self.connectionMessage("Setup accepted — save still needed",failure.message+" Your setup code was accepted. Keep this app open and choose Retry saving connection; you do not need another code.")
@@ -175,17 +176,29 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
         }}
     }
     @objc func retryConnectionSave() {
+        guard !pairingInFlight else{return}
         guard pendingToken != nil else{connectionMessage("No pending connection","Choose Unlock saved connection to use an existing connection, or Connect to Silas for a new setup code.");return}
-        persistConnection(interactive:true)
+        pairingInFlight=true
+        confirmConnectionReload { approved in
+            self.pairingInFlight=false
+            if approved {self.persistConnection(interactive:true)}
+        }
     }
+    func confirmConnectionReload(_ completion:@escaping(Bool)->Void){
+        let alert=NSAlert();alert.messageText="Save your work before continuing"
+        alert.informativeText="Save or copy any open notes first. Saving this connection reloads the workspace. Choose Cancel to keep working, then retry when you are ready."
+        alert.addButton(withTitle:"Cancel");alert.addButton(withTitle:"Continue and reload")
+        alert.beginSheetModal(for:window){completion($0 == .alertSecondButtonReturn)}
+    }
+    func reloadWorkspace(){workspace?.reload()}
     @objc func unlockConnection() {
         guard !pairingInFlight else{return}
-        if pendingToken != nil{persistConnection(interactive:true);return}
-        pairingInFlight=true;window.title="silascalc — Unlocking connection…"
+        if pendingToken != nil{retryConnectionSave();return}
+        pairingInFlight=true;window?.title="silascalc — Unlocking connection…"
         credentials.read(interactive:true){result in DispatchQueue.main.async {
-            self.pairingInFlight=false;self.window.title="silascalc"
+            self.pairingInFlight=false;self.window?.title="silascalc"
             switch result {
-            case .success:self.workspace?.reload();self.connectionMessage("Connection unlocked","Your saved connection is ready on this Mac.")
+            case .success:self.connectionMessage("Connection unlocked","Your saved connection is ready. Choose Retry classes to reconnect without losing your open work.")
             case .failure(let failure):self.connectionMessage("Connection not unlocked",failure.message)
             }
         }}
