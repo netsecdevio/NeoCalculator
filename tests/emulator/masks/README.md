@@ -29,19 +29,19 @@ clock from the real wall clock (`StatusBar::updateClock()` →
 so a golden blessed at one time vs a candidate generated at another differ inside
 the clock glyphs — and only there.
 
-The clock label is aligned `LV_ALIGN_LEFT_MID,6` in `lv_font_montserrat_12`
-([`StatusBar.cpp:61-65`](../../../src/ui/StatusBar.cpp#L61)) and is always exactly 5
-glyphs (`"HH:MM"`), so its box spans ≈ `x[6..38] y[8..16]`. Because **both** the
-hour and the minute digits vary across arbitrary launches, the mask must cover the
-*whole* label, not just the minutes. Every StatusBar app mask therefore shares one rect:
+The clock label uses `LV_ALIGN_RIGHT_MID, -70` in `lv_font_montserrat_12`
+([`StatusBar.cpp`](../../../src/ui/StatusBar.cpp)). The five `HH:MM` glyphs
+occupy approximately `x[219..249] y[8..16]`. Both hour and minute digits vary,
+so each StatusBar mask covers the complete label:
 
 ```
-4,6,37,13      → x[4..40] y[6..18]  (full HH:MM label + ~2px margin)
+215,6,37,13    → x[215..251] y[6..18]
 ```
 
-That band touches only the clock — the app title is centered (`x~160`), the
-battery/angle/modifier are right-aligned (`x>240`), and the expression/result and
-app body render below the `y=24` StatusBar separator.
+This preserves the former 37-by-13 mask area, moved to the current clock location.
+The old left-side rectangle is no longer masked. Titles, RAD, battery, and the
+app body remain byte-compared. The user approved the current appearance on
+2026-11-20; PR7 CI run 43110948963 supplied the reference images.
 
 > **Note — the calc masks are clock masks, not cursor masks.** Earlier revisions
 > described `calc_1_plus_2` / `calc_fraction_sum` as masking the CalculationApp
@@ -51,7 +51,8 @@ app body render below the `y=24` StatusBar separator.
 > `8,6,30,13` (`x[8..37]`) missed the clock's left edge `x[6..7]`, which leaked
 > outside the mask and **failed CI** once a candidate was generated at a different
 > hour than the golden was blessed. Widening both calc masks to the shared
-> `4,6,37,13` (a superset of the old rect) fixed it.
+> `4,6,37,13` (a superset of the old rect) fixed that historical left-aligned
+> layout. The current right-aligned clock uses `215,6,37,13` as described above.
 
 ## Naming
 

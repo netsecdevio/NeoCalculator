@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # compare-ppm.py — dependency-free P6 PPM comparator for the NumOS SDL2 emulator.
 #
-# Phase 4B-A visual-test tooling (Phase 4B-B adds cursor-safe masking). Compares
+# Phase 4B-A visual-test tooling (Phase 4B-B adds volatile-region masking). Compares
 # the candidate screenshot produced by the native emulator (`--screenshot` /
 # in-script `screenshot`, see src/hal/NativeHal.cpp:679-702) against an
 # expected/golden PPM, byte-for-byte — optionally ignoring known volatile regions
-# (the blinking text cursor) so a candidate can be compared despite UI nondeterminism.
+# (the live StatusBar clock) so a candidate can be compared despite UI nondeterminism.
 #
 # Scope: this tool only proves that two PPMs are or are not identical (and how
 # they differ). It does NOT assert semantic correctness ("1+2 = 3"); that is a

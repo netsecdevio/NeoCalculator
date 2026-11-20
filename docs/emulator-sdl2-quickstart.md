@@ -760,7 +760,7 @@ Both new screens are **human-gated**: this phase makes **no golden claim** — t
 candidates are for human review only, and no golden/mask is promoted automatically.
 There are **no semantic numeric assertions** for Statistics/Probability yet (only the
 `assert_app` smoke); adding one would require a read-only app-state accessor and is
-deferred. A clock mask (shared rect `4,6,37,13`) is added by the human at promotion
+deferred. A clock mask (shared rect `215,6,37,13`) is added by the human at promotion
 time, as with the other app smokes.
 
 It drives each bundled `.numos` script with `--headless --deterministic --script
@@ -780,17 +780,15 @@ that paints differing pixels magenta. Exit codes: **0** identical, **1** valid b
 different, **2** invalid input. (Run it with the same file twice to validate a
 single PPM's format — exit 0.)
 
-**Masked comparison (Phase 4B-B).** Some screens are not byte-stable across
-launches: the CalculationApp input cursor blinks (an `lv_timer` toggling every
-500 ms), and the deterministic tick only pins the blink *phase within a single
-run*, so spaced-apart launches differ inside a tiny band around the cursor.
-`launcher_smoke` has no cursor and stays byte-stable; `calc_1_plus_2` /
-`calc_fraction_sum` differ only inside `x[10..34] y[8..16]`. To compare them
-anyway, ignore that region:
+**Masked comparison (Phase 4B-B).** The live StatusBar HH:MM clock varies
+across launches. The earlier cursor explanation was a misdiagnosis: the
+synthetic LVGL tick makes the cursor phase deterministic. The current clock is
+right-aligned at approximately `x[219..249] y[8..16]`, covered by the shared
+`215,6,37,13` rectangle. The launcher has no clock and remains unmasked.
 
 ```bash
 # Ad-hoc rectangle(s) (top-left origin, X,Y,W,H; repeatable):
-python scripts/compare-ppm.py golden.ppm candidate.ppm --ignore-rect 8,6,30,13
+python scripts/compare-ppm.py golden.ppm candidate.ppm --ignore-rect 215,6,37,13
 
 # Or a committed mask file (one 'x,y,w,h' per line; '#' comments, blank lines ok):
 python scripts/compare-ppm.py golden.ppm candidate.ppm \
@@ -804,9 +802,9 @@ differences fall inside masks, the result is `IDENTICAL (after masking …)` →
 `h<=0` are an error (exit 2); rects past the frame edge are clipped.
 
 **When is a mask acceptable?** Only for genuinely nondeterministic UI regions (the
-blinking cursor). Keep it tight — never mask the expression or result pixels, and
-never use a mask to hide a rendering bug (the renderer/cursor is frozen, so the
-blink is masked in the comparator, not fixed in `src/`). A mask is **not** a
+live StatusBar clock). Keep it tight — never mask the expression or result pixels, and
+never use a mask to hide a rendering bug. Deterministic cursor and math pixels
+remain byte-gated. A mask is **not** a
 substitute for a semantic assertion that the result is correct — for *value*
 correctness use the Phase 4B-C [`assert_result`](#semantic-assertions-phase-4b-c)
 commands; render correctness remains a human judgement at promotion time. See
@@ -926,10 +924,9 @@ SDL_VIDEODRIVER=dummy ./scripts/run-emulator-linux.sh \
 non-calculation apps in this phase. Settings persistence is in-memory only (see
 above). Math Showcase is read-only display (it evaluates nothing). Both screens
 are byte-deterministic within a run (verified by a back-to-back SHA-256 compare);
-across runs the only volatile region is the StatusBar clock (`HH:MM`, ~`x[27..33]
+across runs the only volatile region is the StatusBar clock (`HH:MM`, ~`x[219..249]
 y[8..16]`) — the same per-minute variation every status-bar screen has — so a
-future golden would mask the clock, just as `calc_1_plus_2` masks the blinking
-cursor.
+future golden would mask the clock, just as `calc_1_plus_2` masks its clock.
 
 ### Additional emulator apps: Statistics & Probability (Phase 6A)
 
@@ -977,7 +974,7 @@ they have **no `assert_result`-style semantic assertions** (that path is
 CalculationApp-only). Both open in their default state and are not driven with data
 entry in this phase. As with every emulator screen the only across-run volatile
 region is the StatusBar clock (`HH:MM`); a future golden would mask it, exactly as
-`calc_1_plus_2` masks the blinking cursor.
+`calc_1_plus_2` masks the live clock; deterministic cursor pixels remain gated.
 
 ### Additional emulator app: Sequences (Phase 7A)
 
@@ -1030,7 +1027,7 @@ has **no `assert_result`-style semantic assertions** (that path is CalculationAp
 other expressions silently evaluate to 0 ([SequencesApp.cpp:333](../src/apps/SequencesApp.cpp#L333));
 this is a pre-existing app limitation, not introduced here. As with every emulator screen
 the only across-run volatile region is the StatusBar clock (`HH:MM`); a future golden
-would mask it (rect `4,6,37,13`). **No Sequences golden has been accepted yet.**
+would mask it (rect `215,6,37,13`). **No Sequences golden has been accepted yet.**
 
 ### Additional emulator app: Regression (Phase 7C)
 
@@ -1083,7 +1080,7 @@ it has **no `assert_result`-style semantic assertions** (that path is Calculatio
 The Equation/Graph model can be toggled linear↔quadratic with `SHIFT`
 ([RegressionApp.cpp:846-867](../src/apps/RegressionApp.cpp#L846)); the bundled scripts use
 the default linear fit. As with every emulator screen the only across-run volatile region is
-the StatusBar clock (`HH:MM`); a future golden would mask it (rect `4,6,37,13`). **No
+the StatusBar clock (`HH:MM`); a future golden would mask it (rect `215,6,37,13`). **No
 Regression golden has been accepted yet.**
 
 ## Keyboard map (Phase 3A)
@@ -1366,7 +1363,8 @@ per-script `timeout` (nonzero exit → fail), a broken fix trips an assertion
 `grapher_trace_smoke`, `grapher_templates_smoke`) were re-blessed after the
 Phase 9D/9E/9F render changes (fixed active-tab pill clipping; templates modal now
 lists the real plottable expressions). Each reuses its existing clock-only mask
-(`4,6,37,13`) **unchanged** — no new masks, no broadened masks, no source changes.
+(`4,6,37,13`) **unchanged at that historical phase**. The November 2026
+clock relocation supersedes those coordinates with `215,6,37,13` at the same area.
 
 ### Phase 10B: implicit-equation plotting + delimiter polish
 
@@ -1497,9 +1495,9 @@ PlatformIO paths can hit the Windows path-length limit). Consequences:
   for deterministic `.numos` input replay (see
   [Scripted input replay](#scripted-input-replay-phase-4a)), **Phase 4B-A**
   adds candidate-screenshot generation + a dependency-free PPM comparator + a
-  human-gated golden directory, **Phase 4B-B** adds cursor-safe masking
-  (`--ignore-rect` / `--mask-file`) so calc screenshots compare despite cursor
-  blink (see
+  human-gated golden directory, **Phase 4B-B** adds clock-only masking
+  (`--ignore-rect` / `--mask-file`) so calc screenshots compare despite wall-clock
+  changes (see
   [Candidate screenshots & golden comparison](#candidate-screenshots--golden-comparison-phase-4b-a)),
   and **Phase 4B-C** adds `assert_*` commands that check the value CalculationApp
   actually *computed* — no OCR, no pixels — via an emulator-only read-only probe
