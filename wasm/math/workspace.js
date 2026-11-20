@@ -178,7 +178,7 @@ function mountFeedback(result,saved=null,container=null){
   const fields=[];
   function field(labelText,maxLength){const label=document.createElement('label'),field=document.createElement('textarea');field.maxLength=maxLength;label.textContent=labelText;label.append(field);panel.append(label);fields.push(field);return field;}
   let version=saved?.version||0,editing=0;
-  const changed=()=>{dirtyPanels.add(panel);editing++;};
+  const changed=()=>{dirtyPanels.add(panel);editing++;workStates.set(result.outputId,'Unsaved changes');updateHistoryState(result.outputId);};
   const annotations=mountAnnotations(panel,result,saved?.feedback,{
     onChange:changed,
     async renderGraph(target,expression){
@@ -257,7 +257,7 @@ async function refreshSavedWork(){
       const label=document.createElement('span');label.dataset.classLabel=item.classId;label.textContent=className(item.classId);meta.append(label);
       const date=new Date(item.created);
       if(item.created&&!Number.isNaN(date.getTime())){const time=document.createElement('time');time.dateTime=date.toISOString();time.textContent=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(date);meta.append(document.createTextNode(' · '),time);}
-      const state=document.createElement('span');state.className='saved-work-status';state.textContent=workStates.get(item.outputId)||'Saved explanation';
+      const state=document.createElement('span');state.className='saved-work-status';state.textContent=workStates.get(item.outputId)||(item.submitted===true?'Submitted for review':Number.isInteger(item.version)&&item.version>0?'Draft saved':'Saved explanation');
       button.onclick=async()=>{
         if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
         if(pendingReopens.has(item.outputId))return;
