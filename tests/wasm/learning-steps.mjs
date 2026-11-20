@@ -16,15 +16,16 @@ async function checkParentBoundary(browser) {
   const child=await (await page.locator('iframe').elementHandle()).contentFrame();
   await child.waitForURL(server.origin+'/transport-test.html*');
   await child.waitForFunction(()=>window.client);
-  await child.evaluate(()=>{window.outcome=null;window.client.loadModels().then(data=>window.outcome={data},error=>window.outcome={error:error.message});});
+  await child.evaluate(()=>{window.outcome=null;Promise.all([window.client.loadModels(),window.client.loadClasses()]).then(data=>window.outcome={data},error=>window.outcome={error:error.message});});
   if(origin===rejected) {
    await child.waitForFunction(()=>window.outcome);
    assert.match((await child.evaluate(()=>window.outcome)).error,/not trusted/);
    assert.equal(await page.evaluate(()=>window.requests.length),0,'untrusted parent receives no request');
   } else {
-   await page.waitForFunction(()=>window.requests.length===1);
+   await page.waitForFunction(()=>window.requests.length===2);
    const request=await page.evaluate(()=>window.requests[0]);
    assert.equal(request.action,'models');
+   assert.equal(await page.evaluate(()=>window.requests[1].action),'classes');
    await child.evaluate(({id,origin})=>{
     const data={type:'brainfood-math-response',id,data:{models:['forged']}};
     dispatchEvent(new MessageEvent('message',{origin:'https://untrusted.example',source:parent,data}));
@@ -32,8 +33,9 @@ async function checkParentBoundary(browser) {
    },{id:request.id,origin});
    assert.equal(await child.evaluate(()=>window.outcome),null,'wrong origin or source must not resolve a request');
    await page.evaluate(({id,target})=>document.querySelector('iframe').contentWindow.postMessage({type:'brainfood-math-response',id,data:{models:['approved']}},target),{id:request.id,target:server.origin});
+   await page.evaluate(target=>document.querySelector('iframe').contentWindow.postMessage({type:'brainfood-math-response',id:window.requests[1].id,data:{classes:['algebra']}},target),server.origin);
    await child.waitForFunction(()=>window.outcome);
-   assert.deepEqual(await child.evaluate(()=>window.outcome),{data:{models:['approved']}});
+   assert.deepEqual(await child.evaluate(()=>window.outcome),{data:[{models:['approved']},{classes:['algebra']}]});
   }
  }
  await page.close();
