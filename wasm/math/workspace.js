@@ -143,15 +143,15 @@ for(const id of ["learning-context","teaching-model"]) document.getElementById(i
 
 const classSelect=document.createElement('select');classSelect.id='learning-class';
 const classLabel=document.createElement('label');classLabel.htmlFor='learning-class';classLabel.textContent='Your class';
-input.before(classLabel,classSelect);
-loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
+document.querySelector('label[for="expression"]').before(classLabel,classSelect);
+loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=data.classLabels?.[id]||id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
 const dirtyPanels=new Set();
 // Open editors are independent of the refreshable saved-work index. One editor
 // owns each output's draft/version for the lifetime of this page.
 const openedEditors=new Map(),pendingReopens=new Set();
 const workEditors=document.createElement('div');workEditors.id='opened-work';
 explanation.after(workEditors);
-function focusEditor(editor){editor.scrollIntoView({block:'nearest'});editor.querySelector('textarea:not(:disabled),button:not(:disabled)')?.focus({preventScroll:true});}
+function focusEditor(editor){editor.scrollIntoView({block:'nearest'});(editor.querySelector('textarea:not(:disabled),select:not(:disabled),button:not(:disabled)')||editor).focus({preventScroll:true});}
 window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
 function mountFeedback(result,saved=null,container=null){
   if(!result.outputId||!result.revision)return;
@@ -160,6 +160,9 @@ function mountFeedback(result,saved=null,container=null){
     container=document.createElement('section');container.dataset.outputId=result.outputId;
     const title=document.createElement('h2');title.textContent=result.title;container.append(title);
   }
+  container.tabIndex=-1;
+  const editorTitle=container.querySelector('h2');
+  if(editorTitle){editorTitle.id='saved-output-title-'+result.outputId;container.setAttribute('aria-labelledby',editorTitle.id);}
   const panel=document.createElement('section');panel.className='feedback';
   const heading=document.createElement('h2');heading.textContent='Your notes and work';
   const description=document.createElement('p');description.textContent='Class: '+result.classId+'. Notes stay attached to this explanation.';
