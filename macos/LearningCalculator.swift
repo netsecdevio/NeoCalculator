@@ -113,6 +113,7 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
     var pairingInFlight=false
     let pairingSession=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     func applicationDidFinishLaunching(_ note:Notification){
+        NSApp.appearance=NSAppearance(named:.darkAqua)
         do {
             let resources=Bundle.main.resourceURL!
             server=try LocalCalculatorServer(root:resources.appendingPathComponent("calculator"))

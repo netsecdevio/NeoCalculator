@@ -38,7 +38,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .feedback button + button { margin-left: 8px; }
 .feedback [role="status"] { font-weight: 600; }
 #saved-work section { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--silas-border); }
-canvas { width: 100%; height: auto; background: #ffffff; border: 1px solid var(--silas-border); border-radius: var(--silas-radius); }
+canvas { width: 100%; height: auto; background: var(--silas-graph-bg); border: 1px solid var(--silas-border); border-radius: var(--silas-radius); }
 details { border-top: 1px solid var(--silas-border); padding-top: 18px; margin-top: 24px; }
 .learning-options { margin: 16px 0 0; padding-top: 14px; }
 .learning-options[open] summary { margin-bottom: 16px; }
