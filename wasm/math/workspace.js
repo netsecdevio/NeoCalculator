@@ -38,17 +38,34 @@ async function explain() {
   }catch(error){if(token===generation&&version===explanationVersion)status.textContent=error.message;}
   finally{if(token===generation)busy(false);}
 }
-async function refreshTeachingModels(){
-  const select=document.querySelector('#teaching-model');
-  try{
-    const catalog=await loadModels();
-    if(!Array.isArray(catalog.models))throw Error('Model catalog unavailable');
-    select.replaceChildren();
-    for(const model of catalog.models){const option=document.createElement('option');option.value=model.id;option.textContent=model.label;select.append(option);}
-    select.value=catalog.default_model;
-    document.querySelector('#model-status').textContent=catalog.models.length+' configured models listed; provider availability may vary.';
-  }catch(error){document.querySelector('#model-status').textContent=error.message;}
+const modelSelect=document.querySelector('#teaching-model');
+const modelStatus=document.querySelector('#model-status');
+const retryModels=document.createElement('button');retryModels.type='button';retryModels.textContent='Retry models';retryModels.hidden=true;
+modelStatus.after(retryModels);
+let modelLoad=null,modelCatalogFailed=false;
+function refreshTeachingModels(){
+  if(modelLoad)return modelLoad;
+  retryModels.disabled=true;modelStatus.textContent='Loading your model catalog…';
+  modelLoad=(async()=>{
+    try{
+      const catalog=await loadModels();
+      if(!Array.isArray(catalog.models)||catalog.models.some(model=>!model||typeof model.id!=='string'||typeof model.label!=='string'))throw Error('Model catalog unavailable');
+      const previous=modelSelect.value;
+      const fallback=document.createElement('option');fallback.value='';fallback.textContent='Server default';
+      modelSelect.replaceChildren(fallback);
+      for(const model of catalog.models){const option=document.createElement('option');option.value=model.id;option.textContent=model.label;modelSelect.append(option);}
+      modelSelect.value=catalog.models.some(model=>model.id===previous)?previous:catalog.models.some(model=>model.id===catalog.default_model)?catalog.default_model:'';
+      modelCatalogFailed=false;retryModels.hidden=true;
+      modelStatus.textContent=catalog.models.length+' configured models listed; provider availability may vary.';
+    }catch{
+      modelCatalogFailed=true;retryModels.hidden=false;
+      modelStatus.textContent='Could not load your teaching models. Check your Silas connection or sign in/pair this device, then retry.';
+    }finally{retryModels.disabled=false;modelLoad=null;}
+  })();
+  return modelLoad;
 }
+retryModels.onclick=()=>void refreshTeachingModels();
+
 function nodeText(node) {
   if (node.value !== undefined) return node.value;
   if (node.displayText) return node.displayText;
@@ -142,16 +159,38 @@ function updateClassContext(){
   document.querySelectorAll('[data-class-label]').forEach(element=>{element.textContent=className(element.dataset.classLabel);});
 }
 classSelect.addEventListener('change',()=>{clearExplanation();updateClassContext();});
-loadClasses().then(data=>{
-  for(const id of data.classes){
-    const name=typeof data.classLabels?.[id]==='string' ? data.classLabels[id] : 'Class '+(classNames.size+1);
-    classNames.set(id,name);
-    const option=document.createElement('option');option.value=id;option.textContent=name;classSelect.append(option);
-  }
-  if(classNames.has(launch.get('classId')))classSelect.value=launch.get('classId');
-  updateClassContext();
-  if(!data.classes.length)status.textContent='No class is linked to this account yet.';
-}).catch(error=>{status.textContent=error.message;});
+const classContext=document.querySelector('#class-context');
+classContext.setAttribute('role','status');
+const retryClasses=document.createElement('button');retryClasses.type='button';retryClasses.textContent='Retry classes';retryClasses.hidden=true;
+classContext.after(retryClasses);
+let loadingClasses=false;
+async function refreshClasses(){
+  if(loadingClasses)return;
+  loadingClasses=true;retryClasses.disabled=true;classSelect.disabled=true;
+  classContext.textContent='Loading your linked classes…';
+  try{
+    const data=await loadClasses();
+    if(!Array.isArray(data.classes)||data.classes.some(id=>typeof id!=='string'))throw Error('The class list could not be read. Please retry.');
+    const previous=classSelect.value;
+    classNames.clear();classSelect.replaceChildren();
+    for(const id of data.classes){
+      const name=typeof data.classLabels?.[id]==='string' ? data.classLabels[id] : 'Class '+(classNames.size+1);
+      classNames.set(id,name);
+      const option=document.createElement('option');option.value=id;option.textContent=name;classSelect.append(option);
+    }
+    const preferred=previous||launch.get('classId');
+    if(classNames.has(preferred))classSelect.value=preferred;
+    updateClassContext();
+    retryClasses.hidden=true;
+    if(!data.classes.length)classContext.textContent='No class is linked to this account yet. Ask your parent or teacher to link one.';
+  }catch{
+    classContext.textContent='Could not load your classes. Check your Silas connection or sign in/pair this device, then retry.';
+    retryClasses.hidden=false;
+  }finally{loadingClasses=false;retryClasses.disabled=false;classSelect.disabled=!classSelect.options.length;}
+}
+retryClasses.onclick=()=>{void refreshClasses();if(modelCatalogFailed)void refreshTeachingModels();};
+void refreshClasses();
+
 const dirtyPanels=new Set();
 // Open editors are independent of the refreshable saved-work index. One editor
 // owns each output's draft/version for the lifetime of this page.
