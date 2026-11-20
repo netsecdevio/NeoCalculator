@@ -31,6 +31,14 @@ try {for(const engine of [chromium,webkit]){
     await panel.getByRole('button',{name:'Submit for review',exact:true}).click();
     assert.equal(version,0,'an empty open composer blocks both saving and submission');
     await panel.getByLabel('Your comment',{exact:true}).fill('   ');
+    // A different text target must not replace the unfinished step comment,
+    // including an empty or whitespace-only composer.
+    for(const draft of ['', '   ']) {
+      await panel.getByLabel('Your comment',{exact:true}).fill(draft);
+      await panel.locator('.annotation-text').evaluate(node=>{const range=document.createRange();range.setStart(node.firstChild,3);range.setEnd(node.firstChild,17);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);node.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));});
+      assert.equal(await panel.locator('.annotation-target').innerText(),'Step 1');
+      assert.equal(await panel.getByLabel('Your comment',{exact:true}).inputValue(),draft);
+    }
     await panel.getByRole('button',{name:'Save draft',exact:true}).click();
     assert.equal(version,0,'whitespace cannot bypass the pending-comment guard');
     await panel.getByRole('button',{name:'Cancel',exact:true}).click();
