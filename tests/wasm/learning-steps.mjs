@@ -1,12 +1,48 @@
 import assert from 'node:assert/strict';
 import {chromium,webkit} from 'playwright';
 import {resolve} from 'node:path';
+import {readFile} from 'node:fs/promises';
 import {startStaticServer} from './test-server.mjs';
 const server=await startStaticServer(resolve('out/wasm-math/dist/release'),8797);
+const transportSource=await readFile('wasm/math/learning-steps.js','utf8');
+async function checkParentBoundary(browser) {
+ const page=await browser.newPage();
+ await page.route(server.origin+'/transport-client.js',route=>route.fulfill({contentType:'text/javascript',body:transportSource}));
+ await page.route(server.origin+'/transport-test.html*',route=>route.fulfill({contentType:'text/html',body:'<script type="module">window.client=await import("./transport-client.js");</script>'}));
+ const approved='http://127.0.0.1:1420', rejected='http://untrusted.example';
+ for(const origin of [rejected,approved]) {
+  await page.route(origin+'/transport-parent',route=>route.fulfill({contentType:'text/html',body:`<iframe src="${server.origin}/transport-test.html?transport=parent&parentOrigin=${encodeURIComponent(origin)}"></iframe><script>window.requests=[];addEventListener('message',e=>{if(e.data?.type==='brainfood-math-request')requests.push(e.data)});</script>`}));
+  await page.goto(origin+'/transport-parent');
+  const child=await (await page.locator('iframe').elementHandle()).contentFrame();
+  await child.waitForURL(server.origin+'/transport-test.html*');
+  await child.waitForFunction(()=>window.client);
+  await child.evaluate(()=>{window.outcome=null;window.client.loadModels().then(data=>window.outcome={data},error=>window.outcome={error:error.message});});
+  if(origin===rejected) {
+   await child.waitForFunction(()=>window.outcome);
+   assert.match((await child.evaluate(()=>window.outcome)).error,/not trusted/);
+   assert.equal(await page.evaluate(()=>window.requests.length),0,'untrusted parent receives no request');
+  } else {
+   await page.waitForFunction(()=>window.requests.length===1);
+   const request=await page.evaluate(()=>window.requests[0]);
+   assert.equal(request.action,'models');
+   await child.evaluate(({id,origin})=>{
+    const data={type:'brainfood-math-response',id,data:{models:['forged']}};
+    dispatchEvent(new MessageEvent('message',{origin:'https://untrusted.example',source:parent,data}));
+    dispatchEvent(new MessageEvent('message',{origin,source:window,data}));
+   },{id:request.id,origin});
+   assert.equal(await child.evaluate(()=>window.outcome),null,'wrong origin or source must not resolve a request');
+   await page.evaluate(({id,target})=>document.querySelector('iframe').contentWindow.postMessage({type:'brainfood-math-response',id,data:{models:['approved']}},target),{id:request.id,target:server.origin});
+   await child.waitForFunction(()=>window.outcome);
+   assert.deepEqual(await child.evaluate(()=>window.outcome),{data:{models:['approved']}});
+  }
+ }
+ await page.close();
+}
 try {
  for(const engine of [chromium,webkit]) {
   const browser=await engine.launch();
   try{
+   await checkParentBoundary(browser);
    const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,problem;
    const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed-revision',classId:'algebra',title:'Your explanation',steps:[{explanation:'Find the slope',math:'m=2',citationIds:[]}],sources:[],answer:'y=2x+12',limitations:[],model:'test/provider'};
    await page.route('**/api/brainfood/math/**',async route=>{
