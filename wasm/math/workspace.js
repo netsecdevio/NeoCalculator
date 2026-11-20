@@ -38,17 +38,34 @@ async function explain() {
   }catch(error){if(token===generation&&version===explanationVersion)status.textContent=error.message;}
   finally{if(token===generation)busy(false);}
 }
-async function refreshTeachingModels(){
-  const select=document.querySelector('#teaching-model');
-  try{
-    const catalog=await loadModels();
-    if(!Array.isArray(catalog.models))throw Error('Model catalog unavailable');
-    select.replaceChildren();
-    for(const model of catalog.models){const option=document.createElement('option');option.value=model.id;option.textContent=model.label;select.append(option);}
-    select.value=catalog.default_model;
-    document.querySelector('#model-status').textContent=catalog.models.length+' configured models listed; provider availability may vary.';
-  }catch(error){document.querySelector('#model-status').textContent=error.message;}
+const modelSelect=document.querySelector('#teaching-model');
+const modelStatus=document.querySelector('#model-status');
+const retryModels=document.createElement('button');retryModels.type='button';retryModels.textContent='Retry models';retryModels.hidden=true;
+modelStatus.after(retryModels);
+let modelLoad=null,modelCatalogFailed=false;
+function refreshTeachingModels(){
+  if(modelLoad)return modelLoad;
+  retryModels.disabled=true;modelStatus.textContent='Loading your model catalog…';
+  modelLoad=(async()=>{
+    try{
+      const catalog=await loadModels();
+      if(!Array.isArray(catalog.models)||catalog.models.some(model=>!model||typeof model.id!=='string'||typeof model.label!=='string'))throw Error('Model catalog unavailable');
+      const previous=modelSelect.value;
+      const fallback=document.createElement('option');fallback.value='';fallback.textContent='Server default';
+      modelSelect.replaceChildren(fallback);
+      for(const model of catalog.models){const option=document.createElement('option');option.value=model.id;option.textContent=model.label;modelSelect.append(option);}
+      modelSelect.value=catalog.models.some(model=>model.id===previous)?previous:catalog.models.some(model=>model.id===catalog.default_model)?catalog.default_model:'';
+      modelCatalogFailed=false;retryModels.hidden=true;
+      modelStatus.textContent=catalog.models.length+' configured models listed; provider availability may vary.';
+    }catch{
+      modelCatalogFailed=true;retryModels.hidden=false;
+      modelStatus.textContent='Could not load your teaching models. Check your Silas connection or sign in/pair this device, then retry.';
+    }finally{retryModels.disabled=false;modelLoad=null;}
+  })();
+  return modelLoad;
 }
+retryModels.onclick=()=>void refreshTeachingModels();
+
 function nodeText(node) {
   if (node.value !== undefined) return node.value;
   if (node.displayText) return node.displayText;
@@ -171,7 +188,7 @@ async function refreshClasses(){
     retryClasses.hidden=false;
   }finally{loadingClasses=false;retryClasses.disabled=false;classSelect.disabled=!classSelect.options.length;}
 }
-retryClasses.onclick=()=>void refreshClasses();
+retryClasses.onclick=()=>{void refreshClasses();if(modelCatalogFailed)void refreshTeachingModels();};
 void refreshClasses();
 
 const dirtyPanels=new Set();

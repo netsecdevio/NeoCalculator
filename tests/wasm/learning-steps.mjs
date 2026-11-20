@@ -41,8 +41,8 @@ async function checkParentBoundary(browser) {
  }
  await page.close();
 }
-async function checkClassRetry(browser) {
- const page=await browser.newPage();let attempts=0,allow=false,releaseRetry;
+async function checkClassRetry(browser,failModelsInitially) {
+ const page=await browser.newPage();let attempts=0,modelAttempts=0,allow=false,releaseRetry;
  const retryGate=new Promise(resolve=>{releaseRetry=resolve;});
  const output={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed',classId:'algebra',title:'Earlier work',steps:[],sources:[],answer:'y=2x+12',model:'test'};
  await page.route('**/api/brainfood/math/**',async route=>{
@@ -52,7 +52,7 @@ async function checkClassRetry(browser) {
    if(!allow){await route.fulfill({status:503,json:{}});return;}
    await retryGate;data={classes:['algebra'],classLabels:{algebra:'Algebra 1'}};
   }else if(path.endsWith('/explain')){await route.fulfill({status:503,json:{}});return;}
-  else if(path.endsWith('/models'))data={models:[]};
+  else if(path.endsWith('/models')){modelAttempts++;if(failModelsInitially&&!allow){await route.fulfill({status:503,json:{}});return;}data={models:[{id:'first',label:'First model'},{id:'chosen',label:'Chosen model'}],default_model:'first'};}
   else if(path.endsWith('/outputs'))data={outputs:[output]};
   else data={...output,output,feedback:{work:'Previous draft'},version:1,submitted:false};
   await route.fulfill({json:data});
@@ -61,15 +61,19 @@ async function checkClassRetry(browser) {
  await page.getByRole('button',{name:'Retry classes',exact:true}).waitFor();
  assert.equal(await page.locator('#class-context').innerText(),'Could not load your classes. Check your Silas connection or sign in/pair this device, then retry.');
  assert.equal(await page.locator('#learning-class').isDisabled(),true);
+ await page.waitForFunction(()=>!document.querySelector('#model-status').textContent.startsWith('Loading'));
+ if(!failModelsInitially){await page.locator('.learning-options summary').click();await page.locator('#teaching-model').selectOption('chosen');}
  // An unavailable class catalog must not require reloading or discard an editor.
  await page.getByRole('button',{name:'Open saved work',exact:true}).click();
  await page.getByRole('button',{name:'Earlier work',exact:true}).click();
  const editor=page.locator('.feedback');await editor.getByLabel('Show your work or describe your approach').fill('Keep my unsaved working');
  const failedRetry=page.waitForResponse(response=>response.url().endsWith('/classes')&&response.status()===503);
+ const failedModelRetry=failModelsInitially?page.waitForResponse(response=>response.url().endsWith('/models')&&response.status()===503):Promise.resolve();
  await page.getByRole('button',{name:'Retry classes',exact:true}).click();
- await failedRetry;
+ await Promise.all([failedRetry,failedModelRetry]);
  await page.waitForFunction(()=>document.querySelector('#class-context').textContent.startsWith('Could not'));
  assert.equal(attempts,2,'failed retry remains available');
+ await page.waitForFunction(()=>!document.querySelector('#model-status').textContent.startsWith('Loading'));
  await page.getByRole('button',{name:'Explain steps',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Teaching help is temporarily unavailable. Your problem has not been rejected.');
  const explainError=await page.locator('#status').innerText();
@@ -79,12 +83,42 @@ async function checkClassRetry(browser) {
  releaseRetry();await page.waitForFunction(()=>document.querySelector('#class-context').textContent==='Working in Algebra 1');
  assert.equal(await page.getByRole('button',{name:'Retry classes',exact:true}).isVisible(),false);
  assert.equal(await page.locator('#learning-class option').count(),1);
+ await page.waitForFunction(()=>document.querySelector('#model-status').textContent.startsWith('2 configured'));
+ assert.equal(modelAttempts,failModelsInitially?3:1,'class retry recovers failed models without reloading a healthy catalog');
+ assert.equal(await page.locator('#teaching-model').inputValue(),failModelsInitially?'first':'chosen');
  assert.equal(await page.locator('#status').innerText(),explainError,'class recovery must not erase an identical error from Explain');
  assert.equal(await page.locator('#learning-class').isDisabled(),false);
  assert.equal(await page.locator('#learning-context').inputValue(),'Teacher directions');
  assert.equal(await page.locator('#expression').inputValue(),'Find the slope');
  assert.equal(await editor.getByLabel('Show your work or describe your approach').inputValue(),'Keep my unsaved working');
  assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});dispatchEvent(event);return event.defaultPrevented;}),true);
+ await page.close();
+}
+
+async function checkModelOnlyRetry(browser){
+ const page=await browser.newPage();let calls=0,releaseModels;
+ const gate=new Promise(resolve=>{releaseModels=resolve;});
+ await page.route('**/api/brainfood/math/**',async route=>{
+  if(route.request().url().endsWith('/models')){
+   if(++calls===1){await route.fulfill({status:503,json:{}});return;}
+   await gate;await route.fulfill({json:{models:[{id:'recovered',label:'Recovered model'}],default_model:'recovered'}});return;
+  }
+  await route.fulfill({json:{classes:['algebra'],classLabels:{algebra:'Algebra 1'}}});
+ });
+ await page.goto(server.origin+'/#context=Keep%20assignment&problem=2%2B3');
+ await page.locator('.learning-options summary').click();
+ const retry=page.getByRole('button',{name:'Retry models',exact:true});await retry.waitFor();
+ assert.equal(await page.locator('#model-status').innerText(),'Could not load your teaching models. Check your Silas connection or sign in/pair this device, then retry.');
+ await page.waitForFunction(()=>document.querySelector('#class-context').textContent==='Working in Algebra 1'&&document.querySelector('#status').textContent.startsWith('Ready'));
+ await retry.click();await retry.dispatchEvent('click');
+ assert.equal(await retry.isDisabled(),true);
+ releaseModels();await page.waitForFunction(()=>document.querySelector('#teaching-model').value==='recovered');
+ assert.equal(calls,2,'pending model retry is coalesced');
+ assert.equal(await retry.isVisible(),false);
+ assert.equal(await page.locator('#class-context').innerText(),'Working in Algebra 1');
+ assert.equal(await page.locator('#learning-context').inputValue(),'Keep assignment');
+ assert.equal(await page.locator('#expression').inputValue(),'2+3');
+ assert.match(await page.locator('#status').innerText(),/^Ready/);
  await page.close();
 }
 
@@ -181,7 +215,9 @@ try {
  for(const engine of [chromium,webkit]) {
   const browser=await engine.launch();
   try{
-   await checkClassRetry(browser);
+   await checkClassRetry(browser,true);
+   await checkClassRetry(browser,false);
+   await checkModelOnlyRetry(browser);
    await checkHistoryContext(browser,engine.name());
    await checkParentBoundary(browser);
    await checkRedirectBoundary(browser);

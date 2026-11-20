@@ -60,6 +60,9 @@ struct KeychainTests {
             saved.signal()
         }
         precondition(saved.wait(timeout: .now()+1) == .success && writes == 2)
+        testCoalescedReads()
+        testReadBatchDeadline()
+        testOldReadTimerDuringSave()
         testWorkspaceRecovery()
         testHTTPServer()
         print("PASS: blocked Keychain leaves caller responsive, deadlines complete once, workers stay bounded, credentials survive and explicit retry succeeds")
@@ -127,4 +130,79 @@ private func testWorkspaceRecovery(){
     app.approve=true;app.retryConnectionSave();settle()
     precondition(app.confirmations==3 && writes==1 && app.reloads==1 && app.pendingToken==nil,"Only a confirmed retry may save and reload")
     print("PASS: unlock preserves workspace; cancelled retry and pending unlock cannot save/reload; confirmed retry succeeds")
+}
+
+
+private func testCoalescedReads(){
+    let release=DispatchSemaphore(value:0),entered=DispatchSemaphore(value:0),done=DispatchSemaphore(value:0)
+    var calls=0
+    let store=KeychainConnection(deadline:2){token,interactive in
+        precondition(token==nil && !interactive);calls += 1;entered.signal();release.wait();return .success("coalesced-synthetic-token")
+    }
+    for _ in 0..<16 {store.read {result in
+        guard case .success("coalesced-synthetic-token")=result else{fatalError("Cold-start readers must share success")}
+        done.signal()
+    }}
+    precondition(entered.wait(timeout:.now()+1) == .success)
+    var rejected=0
+    let reject:(KeychainConnection.Outcome)->Void={result in
+        guard case .failure(.busy)=result else{fatalError("Overflow, writes and explicit unlock must not join")};rejected += 1
+    }
+    store.read(completion:reject)
+    store.save("different-synthetic-token",completion:reject)
+    store.read(interactive:true,completion:reject)
+    precondition(rejected==3)
+    release.signal()
+    for _ in 0..<16 {precondition(done.wait(timeout:.now()+1) == .success)}
+    precondition(calls==1)
+    print("PASS:16 cold-start reads share one result; overflow, writes and explicit unlock cannot join")
+}
+private func testReadBatchDeadline(){
+    let release=DispatchSemaphore(value:0),returned=DispatchSemaphore(value:0),timedOut=DispatchSemaphore(value:0)
+    let countLock=NSLock();var completions=0
+    let store=KeychainConnection(deadline:0.05){_,_ in release.wait();returned.signal();return .success("late-batch-token")}
+    for _ in 0..<3 {store.read {result in
+        guard case .failure(.timeout)=result else{fatalError("Each joined reader must time out")}
+        countLock.lock();completions += 1;countLock.unlock();timedOut.signal()
+    }}
+    for _ in 0..<3 {precondition(timedOut.wait(timeout:.now()+1) == .success)}
+    var closed=false
+    store.read {result in if case .failure(.busy)=result {closed=true}}
+    precondition(closed,"Timed-out batches must refuse new callbacks")
+    release.signal();precondition(returned.wait(timeout:.now()+1) == .success)
+    var cached=false;let end=Date().addingTimeInterval(1)
+    while !cached && Date()<end {
+        store.read {result in if case .success("late-batch-token")=result {cached=true}}
+        Thread.sleep(forTimeInterval:0.005)
+    }
+    precondition(cached,"Late success may populate the cache")
+    countLock.lock();precondition(completions==3,"Late result delivered a callback twice");countLock.unlock()
+    print("PASS: batch deadline resolves all once, closes joins, and permits late cache without redelivery")
+}
+
+
+private func testOldReadTimerDuringSave(){
+    let first=DispatchSemaphore(value:0),writing=DispatchSemaphore(value:0),release=DispatchSemaphore(value:0),saved=DispatchSemaphore(value:0)
+    let counter=NSLock();var saveCompletions=0
+    let store=KeychainConnection(deadline:0.05){token,interactive in
+        if let token=token {precondition(interactive);writing.signal();release.wait();return .success(token)}
+        return .success("existing-cache-token")
+    }
+    store.read {result in guard case .success=result else{fatalError("Initial read failed")};first.signal()}
+    precondition(first.wait(timeout:.now()+1) == .success)
+    store.save("replacement-cache-token",interactive:true){result in
+        guard case .success("replacement-cache-token")=result else{fatalError("Old read timer completed a newer save")}
+        counter.lock();saveCompletions += 1;counter.unlock();saved.signal()
+    }
+    precondition(writing.wait(timeout:.now()+1) == .success)
+    var priorCache=false
+    store.read {result in if case .success("existing-cache-token")=result{priorCache=true}}
+    precondition(priorCache,"Existing cache policy changed during a pending save")
+    Thread.sleep(forTimeInterval:0.15)
+    counter.lock();precondition(saveCompletions==0);counter.unlock()
+    release.signal();precondition(saved.wait(timeout:.now()+1) == .success)
+    var newCache=false
+    store.read {result in if case .success("replacement-cache-token")=result{newCache=true}}
+    precondition(newCache)
+    print("PASS: an old read deadline cannot complete a newer save; existing cache policy is preserved")
 }
