@@ -1,3 +1,5 @@
+import {mountAnnotations} from './annotations.js';
+import {drawGraph} from './graph-view.js';
 import {loadModels,requestExplanation,loadClasses,saveFeedback,loadOutputs,loadOutput} from './learning-steps.js';
 const input = document.querySelector('#expression');
 const status = document.querySelector('#status');
@@ -21,23 +23,7 @@ async function explain() {
     const result=await requestExplanation(text,document.querySelector('#learning-context').value,document.querySelector('#teaching-model').value,document.querySelector('#learning-class').value);
     if(token!==generation || version!==explanationVersion) return;
     if(!Array.isArray(result.steps)||!Array.isArray(result.sources))throw Error('The teaching response could not be read. Please try again.');
-    const heading=document.createElement('h2');heading.textContent=result.title;
-    const list=document.createElement('ol');
-    for(const step of result.steps){
-      const item=document.createElement('li'),instruction=document.createElement('p'),mathLine=document.createElement('p');
-      instruction.textContent=step.explanation;mathLine.textContent=step.math||'';mathLine.className='step-math';item.append(instruction,mathLine);
-      for(const id of step.citationIds||[]){
-        const source=result.sources.find(s=>s.id===id);if(!source)continue;
-        const url=new URL(source.url);if(url.protocol!=='https:')continue;
-        const link=document.createElement('a');link.href=url.href;link.textContent=source.title+' · '+source.locator;link.target='_blank';link.rel='noopener noreferrer';item.append(link,document.createTextNode(' '));
-      }
-      list.append(item);
-    }
-    const answerLine=document.createElement('p');answerLine.className='step-math';answerLine.textContent=result.answer||'';
-    const question=document.createElement('p');question.textContent=result.question||'';
-    const limits=document.createElement('p');limits.textContent=(result.limitations||[]).join(' ');
-    explanation.append(heading,list,answerLine,question,limits);
-    mountFeedback(result);explanation.hidden=false;
+    mountFeedback(result);
     status.textContent='Source-guided explanation · '+result.model+'. Check the reasoning as you work.';
   }catch(error){if(token===generation&&version===explanationVersion)status.textContent=error.message;}
   finally{if(token===generation)busy(false);}
@@ -104,14 +90,7 @@ async function run(action) {
       try {
         const values = await handle.evaluateMany(Array.from({length:721},(_,i)=>-10+i/36));
         if (token !== generation || version !== explanationVersion) return;
-        const ctx = canvas.getContext('2d'),theme=getComputedStyle(canvas);
-        ctx.fillStyle=theme.getPropertyValue('--silas-graph-bg').trim();ctx.fillRect(0,0,720,480);
-        ctx.lineWidth=1; ctx.strokeStyle=theme.getPropertyValue('--silas-graph-grid').trim();
-        for(let i=0;i<=20;i++){ctx.beginPath();ctx.moveTo(i*36,0);ctx.lineTo(i*36,480);ctx.moveTo(0,i*24);ctx.lineTo(720,i*24);ctx.stroke();}
-        ctx.strokeStyle=theme.getPropertyValue('--silas-graph-axes').trim();ctx.beginPath();ctx.moveTo(360,0);ctx.lineTo(360,480);ctx.moveTo(0,240);ctx.lineTo(720,240);ctx.stroke();
-        ctx.fillStyle=theme.getPropertyValue('--silas-graph-axes').trim();ctx.font='12px "JetBrains Mono", monospace';for(let n=-10;n<=10;n+=2){if(n){ctx.fillText(String(n),360+n*36+2,254);ctx.fillText(String(n),364,240-n*24-3);}}
-        ctx.strokeStyle=theme.getPropertyValue('--silas-graph-line').trim();ctx.lineWidth=2;ctx.beginPath();let previous=null;
-        values.forEach((v,i)=>{const y=240-v.value*24;if(v.kind!=='finite'||!Number.isFinite(y)||Math.abs(v.value)>10){previous=null;return;}if(previous!==null&&Math.abs(y-previous)<120)ctx.lineTo(i,y);else ctx.moveTo(i,y);previous=y;});ctx.stroke();canvas.hidden=false;
+        drawGraph(canvas,values);canvas.hidden=false;
         document.querySelector('#graph-description').textContent='y = '+expression+'; viewing x and y from −10 to 10. Large jumps are left disconnected.';
       } finally { await handle.dispose().catch(()=>{}); }
     } else {
@@ -170,32 +149,45 @@ function mountFeedback(result,saved=null,container=null){
   panel.append(heading,description);
   const fields=[];
   function field(labelText,maxLength){const label=document.createElement('label'),field=document.createElement('textarea');field.maxLength=maxLength;label.textContent=labelText;label.append(field);panel.append(label);fields.push(field);return field;}
-  const annotations=result.steps.map((step,index)=>field('Step '+(index+1)+' — what helped or confused you?',2000));
+  let version=saved?.version||0,editing=0;
+  const changed=()=>{dirtyPanels.add(panel);editing++;};
+  const annotations=mountAnnotations(panel,result,saved?.feedback,{
+    onChange:changed,
+    async renderGraph(target,expression){
+      const session=math;
+      if(!session)throw Error('The calculator is still starting. Try Draw graph again.');
+      const handle=await session.compile1D(expression,'x');
+      try{const values=await handle.evaluateMany(Array.from({length:721},(_,i)=>-10+i/36));drawGraph(target,values);}
+      finally{await handle.dispose().catch(()=>{});}
+    },
+  });
   const work=field('Show your work or describe your approach',12000);
   const comment=field('What should we explain differently?',12000);
   const rating=document.createElement('select');rating.setAttribute('aria-label','How was this explanation?');
   for(const [value,label] of [['','Choose feedback'],['helpful','Helpful'],['confusing','Confusing'],['incorrect','I think something is incorrect']]){const option=document.createElement('option');option.value=value;option.textContent=label;rating.append(option);}
   panel.append(rating);fields.push(rating);
   if(saved?.feedback){
-    for(const note of saved.feedback.annotations||[])if(annotations[note.step])annotations[note.step].value=note.text;
     work.value=saved.feedback.work||'';comment.value=saved.feedback.comment||'';rating.value=saved.feedback.rating||'';
   }
-  let version=saved?.version||0,editing=0;panel.addEventListener('input',()=>{dirtyPanels.add(panel);editing++;});
+  panel.addEventListener('input',changed);
   const message=document.createElement('p');message.setAttribute('role','status');
   const draft=document.createElement('button'),submit=document.createElement('button');draft.type=submit.type='button';draft.textContent='Save draft';submit.textContent='Submit for review';
   async function send(submitted){
+    if(annotations.pending()){message.textContent='Add or cancel your open comment. Draw any changed graph expression, or clear it, before saving.';return;}
+    annotations.setDisabled(true);
     draft.disabled=submit.disabled=true;fields.forEach(f=>f.disabled=true);const snapshot=editing;
     try{
-      const response=await saveFeedback(result.outputId,{revision:result.revision,version,submit:submitted,feedback:{annotations:annotations.flatMap((n,i)=>n.value.trim()?[{step:i,text:n.value.trim()}]:[]),work:work.value,comment:comment.value,rating:rating.value}});
+      const response=await saveFeedback(result.outputId,{revision:result.revision,version,submit:submitted,feedback:{...annotations.value(),work:work.value,comment:comment.value,rating:rating.value}});
       version=response.version;if(editing===snapshot)dirtyPanels.delete(panel);
       message.textContent=response.submitted?'Submitted for review.':'Draft saved.';
       if(response.submitted){fields.forEach(f=>f.disabled=true);return;}
     }catch(error){message.textContent='Not saved. Your notes are still here. '+error.message;}
+    annotations.setDisabled(false);
     draft.disabled=submit.disabled=false;fields.forEach(f=>f.disabled=false);
   }
   draft.onclick=()=>send(false);submit.onclick=()=>send(true);panel.append(draft,submit,message);
   // Keep prior work visible even when another explanation is requested.
-  if(saved?.submitted){fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
+  if(saved?.submitted){annotations.setDisabled(true);fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
   container.append(panel);workEditors.append(container);openedEditors.set(result.outputId,container);
 }
 
@@ -224,7 +216,6 @@ reopen.onclick=async()=>{
           const panel=document.createElement('section');panel.dataset.outputId=item.outputId;
           const h=document.createElement('h2');h.textContent=saved.output.title;
           panel.append(h);
-          for(const step of saved.output.steps){const text=document.createElement('p');text.textContent=step.explanation+' '+(step.math||'');panel.append(text);}
           mountFeedback({...saved.output,...item},saved,panel);
         }catch(error){status.textContent=error.message;}
         finally{pendingReopens.delete(item.outputId);button.disabled=false;}

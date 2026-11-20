@@ -122,7 +122,9 @@ try {
     assert.equal(problem.problem,input);assert.equal(problem.classId,'algebra');
    }
    const panel=page.locator('.feedback').last();
-   await panel.getByLabel('Step 1 — what helped or confused you?').fill('Why subtract?');
+   await panel.getByRole('button',{name:'Comment on step 1',exact:true}).click();
+   await panel.getByLabel('Your comment',{exact:true}).fill('Why subtract?');
+   await panel.getByRole('button',{name:'Add comment',exact:true}).click();
    await panel.getByLabel('Show your work or describe your approach').fill('m=-8/-4');
    failSave=true;await panel.getByRole('button',{name:'Save draft'}).click();
    await panel.getByRole('status').filter({hasText:'Not saved'}).waitFor();
@@ -145,7 +147,7 @@ try {
    assert.equal(await secondContainer.locator('h2').first().textContent(),secondResult.title);
    assert.equal(await reopened.count(),1);assert.equal(await secondReopened.count(),1);
    assert.equal(outputReads.get('/api/brainfood/math/outputs/'+result.outputId),1,'list refresh during a pending open must not create a second request/editor');
-   assert.equal(await reopened.getByLabel('Step 1 — what helped or confused you?').inputValue(),'Why subtract?');
+   assert.match(await reopened.locator('.annotation-list').innerText(),/Why subtract\?/);
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'b=5');
    await reopened.getByLabel('What should we explain differently?').fill('Keep my first unsaved note');
    await secondReopened.getByLabel('Show your work or describe your approach').fill('y=3x+5');
@@ -184,7 +186,7 @@ try {
    assert.equal(await reopened.getByLabel('Show your work or describe your approach').isDisabled(),true);
    await page.getByRole('button',{name:'Open saved work'}).click();
    await page.getByRole('button',{name:'Your explanation — algebra',exact:true}).click();
-   assert.equal(await firstContainer.evaluate(element=>document.activeElement===element),true,'submitted work receives focus even when every field is disabled');
+   assert.equal(await firstContainer.evaluate(element=>element.contains(document.activeElement)),true,'submitted work receives focus inside its own editor');
    assert.equal(await firstContainer.getAttribute('aria-labelledby'),'saved-output-title-'+result.outputId);
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').isDisabled(),false);
    console.log(engine.name()+': API routing, failed-save preservation, refresh/reset draft preservation, editor deduplication, unload guards and submission passed');

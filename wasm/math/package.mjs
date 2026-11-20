@@ -77,12 +77,17 @@ let styles = await readFile(join(sourceDir, "workspace.css"), "utf8");
 styles = styles.replace("./silas-theme.css", assets.theme.url);
 assets.styles = await asset("styles", "workspace.css",
   Buffer.from(styles), "text/css");
+for (const name of ['annotations','graph-view']) {
+  assets[name] = await asset(name, name+'.js', await readFile(join(sourceDir,name+'.js')), 'text/javascript');
+}
 let workspace = await readFile(join(sourceDir, "workspace.js"), "utf8");
 const manifestToken = sha256(Buffer.concat([
   Buffer.from(JSON.stringify({assets, workspace, gitRevision, dirty, emscriptenVersion, requested})),
   await readFile(fileURLToPath(import.meta.url)),
 ])).slice(0, 24);
-workspace = workspace.replace("./learning-steps.js", assets.steps.url)
+workspace = workspace.replace("./annotations.js", assets.annotations.url)
+  .replace("./graph-view.js", assets["graph-view"].url)
+  .replace("./learning-steps.js", assets.steps.url)
   .replaceAll("./numos-math-assets.json", `./numos-math-assets.json?v=${manifestToken}`);
 assets.workspace = await asset("workspace", "workspace.js", Buffer.from(workspace), "text/javascript");
 let html = await readFile(join(sourceDir, "index.html"), "utf8");

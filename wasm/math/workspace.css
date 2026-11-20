@@ -48,6 +48,33 @@ footer { margin-top: 32px; border-top: 1px solid var(--silas-border); padding-to
 a { color: var(--silas-accent); text-underline-offset: 3px; }
 #explanation a { font-size: 13px; display: inline-block; margin-right: 8px; }
 [hidden] { display: none !important; }
+.annotation-toolbar { display: flex; gap: 8px; align-items: center; }
+.annotation-toolbar [aria-pressed="true"] { background: var(--silas-action); color: var(--silas-action-text); }
+.annotation-hint { color: var(--silas-muted); font-size: 14px; }
+.annotation-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .65fr); gap: 24px; }
+.annotation-lesson, .annotation-comments { min-width: 0; }
+.annotation-step { border-bottom: 1px solid var(--silas-border); padding: 12px 0 20px; }
+.annotation-step h3 { font-size: 14px; color: var(--silas-accent); margin: 8px 0; }
+.annotation-text { white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 4px; }
+.is-annotating .annotation-text, .is-annotating canvas { cursor: crosshair; outline: 1px dashed var(--silas-accent); outline-offset: 4px; }
+.annotation-text mark { background: var(--silas-soft); color: var(--silas-text); text-decoration: underline; text-decoration-color: var(--silas-accent); text-decoration-thickness: 3px; }
+.annotation-source { display: block; font-size: 12px; margin-top: 8px; }
+.annotation-comments h3 { font-size: 16px; }
+.annotation-list { list-style: none; padding: 0; }
+.annotation-list li { border-left: 3px solid var(--silas-accent); padding: 12px; background: var(--silas-field); margin-bottom: 12px; overflow-wrap: anywhere; }
+.annotation-list p { margin: 8px 0; white-space: pre-wrap; }
+.annotation-list blockquote, .annotation-target { margin: 8px 0; color: var(--silas-muted); font-size: 14px; overflow-wrap: anywhere; }
+.annotation-empty { color: var(--silas-muted); font-size: 14px; }
+.annotation-composer { border: 1px solid var(--silas-accent); border-radius: 8px; padding: 12px; background: var(--silas-field); }
+.annotation-composer textarea { min-height: 96px; }
+.annotation-graph { position: relative; margin-top: 16px; }
+.annotation-graph canvas { display: block; }
+.graph-pins { position: absolute; inset: 0; pointer-events: none; }
+.graph-pin { position: absolute; pointer-events: auto; transform: translate(-50%, -50%); min-height: 44px; min-width: 44px; padding: 6px; border-radius: 50%; background: var(--silas-action); color: var(--silas-action-text); }
+.feedback .annotation-list button, .feedback .annotation-composer button { margin: 4px 4px 0 0; }
+@media (max-width: 760px) {
+  .annotation-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
 @media (max-width: 520px) {
   main { padding: 20px 14px 32px; }
   form, #explanation, .feedback { padding: 18px 16px; }
