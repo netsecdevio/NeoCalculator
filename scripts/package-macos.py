@@ -75,7 +75,7 @@ if args.learning_workspace:
     info["CFBundleExecutable"] = "NeoCalculatorDesktop"
     info["NSAppTransportSecurity"] = {"NSAllowsLocalNetworking":True}
     (app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
-    subprocess.run(["codesign", "--force", "--sign", "-", str(desktop)], check=True)
+    launcher.unlink()  # The native shell now launches numos directly.
 for binary in [*copied.values(), exe]:
     subprocess.run(["codesign", "--force", "--sign", "-", str(binary)], check=True)
 subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True)
