@@ -1,13 +1,12 @@
 @import url("./silas-theme.css");
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--silas-bg); color: var(--silas-text); font: 16px/1.6 var(--silas-font); }
-main { max-width: 880px; margin: auto; padding: 32px 24px 48px; }
+main { max-width: 820px; margin: auto; padding: 32px 24px 48px; }
 .workspace-header { margin-bottom: 24px; }
 .brand { display: flex; align-items: center; gap: 16px; }
 .brand img { border-radius: 16px; flex: 0 0 auto; }
 h1 { font: 600 clamp(28px, 5vw, 36px)/1.15 var(--silas-font); letter-spacing: -.04em; margin: 0; }
 .brand p { margin: 4px 0 0; color: var(--silas-muted); }
-.intro { margin: 24px 0 0; font-size: 18px; }
 h2 { font-size: 20px; line-height: 1.35; margin-top: 0; }
 p { max-width: 75ch; }
 form, #explanation, .feedback { padding: 24px; border: 1px solid var(--silas-border); border-radius: var(--silas-radius); background: var(--silas-surface); }
@@ -23,7 +22,7 @@ input::placeholder, textarea::placeholder { color: var(--silas-muted); opacity: 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 button { min-height: 44px; border: 1px solid var(--silas-border); border-radius: 8px; background: var(--silas-soft); color: var(--silas-text); padding: 10px 15px; font: 600 14px/1.4 var(--silas-font); cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--silas-accent); }
-button[data-action="evaluate"], button[data-action="explain"] { background: var(--silas-action); border-color: var(--silas-action); color: var(--silas-action-text); }
+button[data-action="explain"] { background: var(--silas-action); border-color: var(--silas-action); color: var(--silas-action-text); }
 button:disabled { opacity: .55; cursor: not-allowed; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--silas-focus); outline-offset: 3px; }
 #opened-work > section:focus-visible { outline: 3px solid var(--silas-focus); outline-offset: 6px; }
@@ -48,14 +47,14 @@ footer { margin-top: 32px; border-top: 1px solid var(--silas-border); padding-to
 a { color: var(--silas-accent); text-underline-offset: 3px; }
 #explanation a { font-size: 13px; display: inline-block; margin-right: 8px; }
 [hidden] { display: none !important; }
-.annotation-toolbar { display: flex; gap: 8px; align-items: center; }
+.annotation-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .annotation-toolbar [aria-pressed="true"] { background: var(--silas-action); color: var(--silas-action-text); }
 .annotation-hint { color: var(--silas-muted); font-size: 14px; }
-.annotation-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .65fr); gap: 24px; }
+.annotation-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .annotation-lesson, .annotation-comments { min-width: 0; }
-.annotation-step { border-bottom: 1px solid var(--silas-border); padding: 12px 0 20px; }
+.annotation-step { border-bottom: 1px solid var(--silas-border); padding: 16px 0 24px; }
 .annotation-step h3 { font-size: 14px; color: var(--silas-accent); margin: 8px 0; }
-.annotation-text { white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 4px; }
+.annotation-text { white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 4px; line-height: 1.8; }
 .is-annotating .annotation-text, .is-annotating canvas { cursor: crosshair; outline: 1px dashed var(--silas-accent); outline-offset: 4px; }
 .annotation-text mark { background: var(--silas-soft); color: var(--silas-text); text-decoration: underline; text-decoration-color: var(--silas-accent); text-decoration-thickness: 3px; }
 .annotation-source { display: block; font-size: 12px; margin-top: 8px; }
@@ -74,21 +73,17 @@ a { color: var(--silas-accent); text-underline-offset: 3px; }
 .graph-pins { position: absolute; inset: 0; pointer-events: none; }
 .graph-pin { position: absolute; pointer-events: auto; transform: translate(-50%, -50%); min-height: 44px; min-width: 44px; padding: 6px; border-radius: 50%; background: var(--silas-action); color: var(--silas-action-text); }
 .feedback .annotation-list button, .feedback .annotation-composer button { margin: 4px 4px 0 0; }
-@media (max-width: 760px) {
-  .annotation-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-}
 @media (max-width: 520px) {
   main { padding: 20px 14px 32px; }
   form, #explanation, .feedback { padding: 18px 16px; }
   .brand img { width: 52px; height: 52px; border-radius: 12px; }
-  .intro { font-size: 16px; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; }
   .feedback button { margin-bottom: 8px; }
 }
 
-.problem-context { margin: 20px 0; padding: 16px; border-left: 3px solid var(--silas-accent); background: var(--silas-field); border-radius: 8px; }
-#class-context { font-weight: 600; margin: 0 0 8px; }
-#lesson-context { color: var(--silas-muted); margin: 0 0 16px; overflow-wrap: anywhere; }
+.problem-context { margin: 20px 0 28px; }
+#class-context { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--silas-muted); }
+#lesson-context { color: var(--silas-muted); margin: 0; overflow-wrap: anywhere; }
 .saved-work-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0 16px; }
 .saved-work-header h2 { flex: 1 1 160px; margin: 0; }
 #saved-work-index { display: grid; gap: 14px; }
@@ -96,3 +91,43 @@ a { color: var(--silas-accent); text-underline-offset: 3px; }
 .saved-work-card button { display: block; text-align: left; width: 100%; font-size: 16px; overflow-wrap: anywhere; }
 .saved-work-meta { margin: 12px 0 8px; color: var(--silas-muted); font-size: 14px; overflow-wrap: anywhere; }
 .saved-work-status { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; color: var(--silas-accent); background: var(--silas-soft); }
+
+/* One clear starting point; optional tools reveal only when requested. */
+.question-label { font-size: clamp(20px, 4vw, 26px); line-height: 1.3; letter-spacing: -.02em; }
+.question-hint { margin: 10px 0 14px; color: var(--silas-muted); }
+.primary-actions { align-items: center; margin: 16px 0 24px; }
+.primary-actions [data-action="explain"] { min-height: 48px; padding: 12px 24px; font-size: 16px; }
+.primary-actions #clear { border-color: transparent; }
+.primary-actions #clear:hover { border-color: var(--silas-border); }
+.workspace-options { border-top: 1px solid var(--silas-border); }
+.workspace-options > details { padding: 0; margin: 0; border-top: 0; }
+.workspace-options > details + details { border-top: 1px solid var(--silas-soft); }
+.workspace-options summary { min-height: 48px; padding: 12px 0; color: var(--silas-muted); }
+.workspace-options details[open] summary { color: var(--silas-text); margin-bottom: 8px; }
+.workspace-options details[open] { padding-bottom: 16px; }
+.workspace-options .actions { margin-top: 12px; }
+.tool-hint { margin-top: 8px; }
+#lesson-context:empty, #graph-description:empty { display: none; }
+#learning-class { max-width: 100%; }
+.annotation-lesson { max-width: 68ch; }
+.annotation-comments { padding-top: 16px; border-top: 1px solid var(--silas-border); }
+.examples { color: var(--silas-muted); }
+footer details { border: 0; padding: 0; margin-top: 14px; }
+footer summary { min-height: 44px; padding: 10px 0; font-weight: 400; }
+@media (max-width: 520px) {
+  .primary-actions { display: flex; flex-wrap: wrap; }
+  .primary-actions [data-action="explain"] { flex: 1 1 auto; }
+  .question-hint { font-size: 15px; }
+}
+
+/* References stay beside the step, with only the cited passage in view. */
+.source-reference { display: block; margin-top: 12px; }
+button.annotation-source { min-height: 44px; max-width: 100%; margin: 0; padding: 8px 12px; background: transparent; color: var(--silas-accent); border-color: var(--silas-soft); font-size: 13px; text-align: left; overflow-wrap: anywhere; }
+button.annotation-source[aria-expanded="true"] { border-color: var(--silas-accent); background: var(--silas-field); }
+.source-callout { margin: 10px 0 16px; padding: 16px 18px; border: 1px solid var(--silas-border); border-left: 3px solid var(--silas-accent); border-radius: 10px; background: var(--silas-field); overflow-wrap: anywhere; }
+.source-callout p:first-child { margin-top: 0; }
+.source-callout p:last-child { margin-bottom: 0; }
+.source-callout blockquote { margin: 12px 0; white-space: pre-line; line-height: 1.75; overflow-wrap: anywhere; }
+.source-locator { color: var(--silas-muted); font-size: 13px; }
+.rendered-math { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; padding: 3px 1px; font-size: 1.15em; }
+.math-highlight { background: var(--silas-soft); color: var(--silas-text); border-radius: 4px; text-decoration: underline; text-decoration-color: var(--silas-accent); text-decoration-thickness: 3px; }
