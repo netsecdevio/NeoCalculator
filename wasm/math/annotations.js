@@ -29,7 +29,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
     section.append(heading,content,mark);
     for(const id of step.citationIds||[]){
       const source=result.sources?.find(s=>s.id===id);if(!source)continue;
-      let url;try{url=new URL(source.url);}catch{continue;}if(url.protocol!=='https:')continue;
+      let url;try{url=new URL(source.url);}catch{continue;}if(url.protocol!=='https:'||url.username||url.password)continue;
       const link=element('a',source.title+' · '+source.locator,'annotation-source');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';section.append(link);
     }
     content.addEventListener('pointerup',()=>{

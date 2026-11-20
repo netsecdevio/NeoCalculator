@@ -8,7 +8,7 @@ try {for(const engine of [chromium,webkit]){
   try {
     const page=await browser.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
     let feedback=null,version=0,submitted=false;
-    const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'immutable-v1',classId:'algebra',title:'Find the line',steps:[{explanation:'📈 Find the slope. Keep the point order.',math:'m = 2',citationIds:[]}],sources:[],answer:'y = 2x + 12',limitations:[],model:'test/model'};
+    const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'immutable-v1',classId:'algebra',title:'Find the line',steps:[{explanation:'📈 Find the slope. Keep the point order.',math:'m = 2',citationIds:['safe','username','password','encoded','http']}],sources:[{id:'safe',title:'Safe reference',locator:'lesson',url:'https://example.org/math'},{id:'username',title:'Username',locator:'bad',url:'https://user@example.org/math'},{id:'password',title:'Password',locator:'bad',url:'https://:secret@example.org/math'},{id:'encoded',title:'Encoded',locator:'bad',url:'https://%75ser:%73ecret@example.org/math'},{id:'http',title:'HTTP',locator:'bad',url:'http://example.org/math'}],answer:'y = 2x + 12',limitations:[],model:'test/model'};
     await page.route('**/api/brainfood/math/**',async route=>{
       const path=new URL(route.request().url()).pathname;let data;
       if(path.endsWith('/models'))data={models:[{id:'test/model',label:'Test'}],default_model:'test/model'};
@@ -24,6 +24,7 @@ try {for(const engine of [chromium,webkit]){
     await page.locator('#expression').fill('Find the line through (-2,8) and (-6,0)');
     await page.getByRole('button',{name:'Explain steps',exact:true}).click();
     const panel=page.locator('.feedback');await panel.waitFor();
+    assert.deepEqual(await panel.locator('.annotation-source').evaluateAll(nodes=>nodes.map(n=>({href:n.href,target:n.target,rel:n.rel}))),[{href:'https://example.org/math',target:'_blank',rel:'noopener noreferrer'}], 'only credential-free HTTPS citations become links');
     assert.equal(await panel.locator('textarea').count(),3,'one hidden composer plus work/comment, not a box for every step');
     await panel.getByRole('button',{name:'Annotate',exact:true}).click();
     await panel.getByRole('button',{name:'Comment on step 1',exact:true}).click();
