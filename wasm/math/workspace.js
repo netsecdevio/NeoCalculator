@@ -7,7 +7,7 @@ const answer = document.querySelector('#answer');
 const canvas = document.querySelector('#graph');
 // Clear session deliberately has no data-action: it stays enabled during loads and failures.
 const buttons = [...document.querySelectorAll('[data-action]')];
-let math, createMath, generation = 0, running = false;
+let math, createMath, mathLoad, generation = 0, running = false;
 const explanation = document.querySelector('#explanation');
 let explanationVersion = 0;
 function clearExplanation() { ++explanationVersion; explanation.hidden=true; explanation.replaceChildren(); }
@@ -62,7 +62,8 @@ function solveText(result) {
   return result.groups.map(group => group.values.map(v => v.variable + ' = ' + nodeText(v.value)).join(', ')).join(' or ');
 }
 function busy(value) { running=value; buttons.forEach(button => { button.disabled = value || (!math && button.dataset.action!=='explain'); }); }
-async function reset() {
+function reset() { mathLoad=resetMath(); return mathLoad; }
+async function resetMath() {
   const token = ++generation; clearExplanation();
   busy(true); input.value = ''; answer.textContent = ''; canvas.hidden = true;
   document.querySelector('#graph-description').textContent = '';
@@ -104,7 +105,7 @@ async function run(action) {
 }
 document.querySelector('#calculator').addEventListener('submit', event=>{event.preventDefault();void run('evaluate');});
 buttons.filter(b=>b.type!=='submit').forEach(button=>button.addEventListener('click',()=>void run(button.dataset.action)));
-document.querySelector('#clear').addEventListener('click',()=>{if(createMath) void reset(); else void load();});
+document.querySelector('#clear').addEventListener('click',()=>{if(createMath) void reset(); else mathLoad=load();});
 async function load() {
 busy(true);
 try {
@@ -115,7 +116,7 @@ try {
   createMath = module.createNumosMath; await reset();
 } catch(error) { status.textContent='Could not load calculator: '+error.message+'. Choose Clear session to retry, or ask for teaching help.';busy(false); }
 }
-void load();
+mathLoad=load();
 
 void refreshTeachingModels();
 
@@ -154,6 +155,11 @@ function mountFeedback(result,saved=null,container=null){
   const annotations=mountAnnotations(panel,result,saved?.feedback,{
     onChange:changed,
     async renderGraph(target,expression){
+      if(!math&&mathLoad){
+        let timer;
+        try{await Promise.race([mathLoad,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('The calculator is taking longer to start. Try Draw graph again.')),10000);})]);}
+        finally{clearTimeout(timer);}
+      }
       const session=math;
       if(!session)throw Error('The calculator is still starting. Try Draw graph again.');
       const handle=await session.compile1D(expression,'x');

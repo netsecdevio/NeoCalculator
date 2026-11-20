@@ -47,7 +47,12 @@ try {for(const engine of [chromium,webkit]){
     assert.equal(feedback.annotationFormat,2);assert.equal(feedback.annotations.length,2);assert.deepEqual(feedback.annotations[0].anchor,{kind:'text',start:3,end:17,quote:'Find the slope'});
     assert.equal(feedback.graph.expression,'2*x+12');assert.equal(feedback.annotations[1].anchor.kind,'graph');assert.ok(feedback.annotations[1].anchor.x>0&&feedback.annotations[1].anchor.x<1);
     const anchor=feedback.annotations[1].anchor;
+    let releaseStartup;const startupGate=new Promise(resolve=>{releaseStartup=resolve;});
+    await page.route('**/numos-math-assets.json?*',async route=>{await startupGate;await route.continue();});
     await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line — algebra',exact:true}).click();
+    await panel.getByRole('status').filter({hasText:'Drawing graph…'}).waitFor();
+    releaseStartup();
+    await panel.locator('.annotation-graph').waitFor({state:'visible'});
     await panel.locator('.graph-pin').waitFor();assert.equal(await panel.locator('mark').innerText(),'Find the slope');
     assert.equal(await panel.locator('.annotation-list li').count(),2);
     for(const width of [320,768,1024,1440]){
