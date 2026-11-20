@@ -101,7 +101,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
   function describeTarget(){target.textContent=pending?.anchor?.kind==='text'?'“'+pending.anchor.quote+'”':pending?.anchor?.kind==='graph'?'Graph point: x ≈ '+((pending.anchor.x*20)-10).toFixed(1)+', y ≈ '+(10-pending.anchor.y*20).toFixed(1):'Step '+(pending.step+1);}
   function start(anchor,index=null){
     if(locked)return;
-    if(pending&&text.value.trim()){message.textContent='Add or cancel your current comment before choosing another spot.';text.focus();return;}
+    if(pending!==null){message.textContent='Add or cancel your current comment before choosing another spot.';text.focus();return;}
     if(notes.length>=40&&index===null){message.textContent='You can add up to 40 comments.';return;}
     active=true;refreshMode();pending=structuredClone(anchor);editingIndex=index;text.value=index===null?'':notes[index].text;
     describeTarget();composer.hidden=false;add.textContent=index===null?'Add comment':'Update comment';message.textContent='';renderPins();text.focus();
