@@ -142,16 +142,41 @@ function updateClassContext(){
   document.querySelectorAll('[data-class-label]').forEach(element=>{element.textContent=className(element.dataset.classLabel);});
 }
 classSelect.addEventListener('change',()=>{clearExplanation();updateClassContext();});
-loadClasses().then(data=>{
-  for(const id of data.classes){
-    const name=typeof data.classLabels?.[id]==='string' ? data.classLabels[id] : 'Class '+(classNames.size+1);
-    classNames.set(id,name);
-    const option=document.createElement('option');option.value=id;option.textContent=name;classSelect.append(option);
-  }
-  if(classNames.has(launch.get('classId')))classSelect.value=launch.get('classId');
-  updateClassContext();
-  if(!data.classes.length)status.textContent='No class is linked to this account yet.';
-}).catch(error=>{status.textContent=error.message;});
+const classContext=document.querySelector('#class-context');
+classContext.setAttribute('role','status');
+const retryClasses=document.createElement('button');retryClasses.type='button';retryClasses.textContent='Retry classes';retryClasses.hidden=true;
+classContext.after(retryClasses);
+let loadingClasses=false,lastClassError='';
+async function refreshClasses(){
+  if(loadingClasses)return;
+  loadingClasses=true;retryClasses.disabled=true;classSelect.disabled=true;
+  classContext.textContent='Loading your linked classes…';
+  try{
+    const data=await loadClasses();
+    if(!Array.isArray(data.classes)||data.classes.some(id=>typeof id!=='string'))throw Error('The class list could not be read. Please retry.');
+    const previous=classSelect.value;
+    classNames.clear();classSelect.replaceChildren();
+    for(const id of data.classes){
+      const name=typeof data.classLabels?.[id]==='string' ? data.classLabels[id] : 'Class '+(classNames.size+1);
+      classNames.set(id,name);
+      const option=document.createElement('option');option.value=id;option.textContent=name;classSelect.append(option);
+    }
+    const preferred=previous||launch.get('classId');
+    if(classNames.has(preferred))classSelect.value=preferred;
+    updateClassContext();
+    retryClasses.hidden=true;
+    if(lastClassError&&status.textContent===lastClassError)status.textContent=data.classes.length?'Classes loaded.':'No class is linked to this account yet.';
+    lastClassError='';
+    if(!data.classes.length)classContext.textContent='No class is linked to this account yet. Ask your parent or teacher to link one.';
+  }catch(error){
+    classContext.textContent='Could not load your classes. Check your Silas connection, then retry.';
+    lastClassError=error.message;status.textContent=lastClassError;
+    retryClasses.hidden=false;
+  }finally{loadingClasses=false;retryClasses.disabled=false;classSelect.disabled=!classSelect.options.length;}
+}
+retryClasses.onclick=()=>void refreshClasses();
+void refreshClasses();
+
 const dirtyPanels=new Set();
 // Open editors are independent of the refreshable saved-work index. One editor
 // owns each output's draft/version for the lifetime of this page.
