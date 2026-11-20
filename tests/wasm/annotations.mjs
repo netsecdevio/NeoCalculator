@@ -22,9 +22,14 @@ try {for(const engine of [chromium,webkit]){
     await page.goto(server.origin);
     await page.waitForFunction(()=>document.querySelector('#learning-class')?.value==='algebra'&&document.querySelector('#status').textContent.startsWith('Ready'));
     await page.locator('#expression').fill('Find the line through (-2,8) and (-6,0)');
-    await page.getByRole('button',{name:'Explain steps',exact:true}).click();
+    await page.getByRole('button',{name:'Help me work through it',exact:true}).click();
     const panel=page.locator('.feedback');await panel.waitFor();
-    assert.deepEqual(await panel.locator('.annotation-source').evaluateAll(nodes=>nodes.map(n=>({href:n.href,target:n.target,rel:n.rel}))),[{href:'https://example.org/math',target:'_blank',rel:'noopener noreferrer'}], 'only credential-free HTTPS citations become links');
+    assert.deepEqual(await panel.locator('.annotation-source').allTextContents(),['Lesson note: Safe reference'],'only credential-free HTTPS citations become previews');
+    await panel.locator('.annotation-source').click();
+    assert.match(await panel.getByRole('dialog').innerText(),/does not have a passage preview/);
+    await page.keyboard.press('Escape');
+    assert.equal(await panel.getByRole('dialog').count(),0);
+    assert.equal(await panel.locator('a.annotation-source').count(),0,'references never open a new window');
     assert.equal(await panel.locator('textarea').count(),3,'one hidden composer plus work/comment, not a box for every step');
     await panel.getByRole('button',{name:'Annotate',exact:true}).click();
     await panel.getByRole('button',{name:'Comment on step 1',exact:true}).click();

@@ -1,1 +1,78 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'"><meta name="color-scheme" content="dark light"><title>silascalc</title><link rel="icon" href="branding/silas-mark.png" type="image/png"><link rel="stylesheet" href="workspace.css"></head><body><main><header class="workspace-header"><div class="brand"><img src="branding/silas-mark.png" alt="" width="64" height="64"><div><h1>silascalc</h1><p>Your math workspace</p></div></div><p class="intro">Try a calculation. Ask for the steps. Keep your working.</p></header><form id="calculator"><section class="problem-context" aria-label="Problem context"><p id="class-context">Loading your linked classes…</p><p id="lesson-context"></p><label for="learning-context">Assignment or lesson notes (optional)</label><textarea id="learning-context" maxlength="3000" rows="3" placeholder="Paste your teacher’s directions, a question from your assignment, or what you want help understanding."></textarea><p class="hint">These notes go with your question when you ask for steps. For a photo or document, type or paste the relevant text here.</p></section><label for="expression">What problem are you working on?</label><textarea id="expression" maxlength="6000" rows="3" spellcheck="false" placeholder="Enter math or describe a problem, such as finding a line through two points."></textarea><p class="hint">Use * for multiplication and ^ for powers. Solve uses x. Trigonometry uses radians.</p><details class="learning-options"><summary>Learning settings</summary><label for="teaching-model">Teaching model</label><select id="teaching-model"><option value="">Server default</option></select><p id="model-status" role="status">Loading your model catalog…</p></details><div class="actions"><button type="submit" data-action="evaluate">Calculate</button><button type="button" data-action="simplify">Simplify</button><button type="button" data-action="solve">Solve for x</button><button type="button" data-action="graph">Graph</button><button type="button" data-action="explain">Explain steps</button><button type="button" id="clear">Clear session</button></div></form><p id="status" role="status">Starting calculator…</p><pre id="answer" aria-live="polite"></pre><section id="explanation" aria-live="polite" hidden></section><canvas id="graph" aria-describedby="graph-description" width="720" height="480" aria-label="Function graph from x negative ten to ten and y negative ten to ten" hidden></canvas><p id="graph-description"></p><details><summary>Examples to try</summary><p>Fractions: 1/3 + 1/6 · Logarithms: log10(1000) · Equation: 2*x+4=0 · Graph: y=2*x-4</p></details><footer><p class="saving-note">Calculations clear when you close this page. Explanations are saved to your class. Use Save draft or Submit for review to keep your notes, and Open saved work to return.</p><p>Explain steps asks your model using retrieved teaching references. It can explain a solution, help correct invalid math, or ask a clarification. AI can make mistakes; check your work and the cited sources.</p><a href="https://github.com/netsecdevio/NeoCalculator" target="_blank" rel="noopener noreferrer">Source and GPL license</a></footer></main><script type="module" src="workspace.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="dark light">
+  <title>silascalc</title>
+  <link rel="icon" href="branding/silas-mark.png" type="image/png">
+  <link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<main>
+  <header class="workspace-header">
+    <div class="brand">
+      <img src="branding/silas-mark.png" alt="" width="64" height="64">
+      <div><h1>silascalc</h1><p>A little help with the next step.</p></div>
+    </div>
+  </header>
+  <form id="calculator">
+    <section class="problem-context" aria-label="Problem context">
+      <p id="class-context">Loading your linked classes…</p>
+      <p id="lesson-context"></p>
+    </section>
+    <label class="question-label" for="expression">What are you working on?</label>
+    <p id="question-hint" class="question-hint">Type the problem, or tell us where you got stuck.</p>
+    <textarea id="expression" maxlength="6000" rows="3" spellcheck="false" aria-describedby="question-hint" placeholder="For example: How do I find a line through two points?"></textarea>
+    <div class="actions primary-actions">
+      <button type="button" data-action="explain">Help me work through it</button>
+      <button type="button" id="clear">Clear session</button>
+    </div>
+    <div class="workspace-options">
+      <details id="assignment-notes">
+        <summary>Add teacher directions or notes</summary>
+        <label for="learning-context">What have you been given?</label>
+        <textarea id="learning-context" maxlength="3000" rows="3" placeholder="Paste the question or directions from your assignment."></textarea>
+        <p class="hint">These notes help us explain your problem. For a photo or document, type or paste the relevant text here.</p>
+      </details>
+      <details class="calculator-tools">
+        <summary>Calculator tools</summary>
+        <p class="hint tool-hint">Use * to multiply and ^ for powers. Equations use x; angles use radians.</p>
+        <div class="actions">
+          <button type="submit" data-action="evaluate">Calculate</button>
+          <button type="button" data-action="simplify">Simplify</button>
+          <button type="button" data-action="solve">Solve for x</button>
+          <button type="button" data-action="graph">Graph</button>
+        </div>
+      </details>
+      <details class="learning-options">
+        <summary>Learning settings</summary>
+        <label for="teaching-model">Teaching model</label>
+        <select id="teaching-model"><option value="">Server default</option></select>
+        <p id="model-status" role="status">Loading your model catalog…</p>
+      </details>
+    </div>
+  </form>
+  <p id="status" role="status">Starting calculator…</p>
+  <pre id="answer" aria-live="polite"></pre>
+  <section id="explanation" aria-live="polite" hidden></section>
+  <canvas id="graph" aria-describedby="graph-description" width="720" height="480" aria-label="Function graph from x negative ten to ten and y negative ten to ten" hidden></canvas>
+  <p id="graph-description"></p>
+  <details class="examples">
+    <summary>Need a problem to try?</summary>
+    <p>Try calculating <code>1/3 + 1/6</code>, solving <code>2*x+4=0</code>, or graphing <code>y=2*x-4</code> in Calculator tools.</p>
+  </details>
+  <footer>
+    <p class="saving-note">Your explanations stay with your class. Save your notes as a draft, or submit them for review.</p>
+    <details>
+      <summary>About your work and sources</summary>
+      <p>Open saved work to return to an explanation and your saved notes. Calculator results clear when you close this page.</p>
+      <p>Step-by-step help uses your teaching model and retrieved references. AI can make mistakes. Check the reasoning and the cited sources as you work.</p>
+      <a href="https://github.com/netsecdevio/NeoCalculator" target="_blank" rel="noopener noreferrer">Source and GPL license</a>
+    </details>
+  </footer>
+</main>
+<script type="module" src="workspace.js"></script>
+</body>
+</html>

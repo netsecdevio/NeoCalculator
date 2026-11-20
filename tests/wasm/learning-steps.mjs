@@ -74,13 +74,13 @@ async function checkClassRetry(browser,failModelsInitially) {
  await page.waitForFunction(()=>document.querySelector('#class-context').textContent.startsWith('Could not'));
  assert.equal(attempts,2,'failed retry remains available');
  await page.waitForFunction(()=>!document.querySelector('#model-status').textContent.startsWith('Loading'));
- await page.getByRole('button',{name:'Explain steps',exact:true}).click();
+ await page.getByRole('button',{name:'Help me work through it',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Teaching help is temporarily unavailable. Your problem has not been rejected.');
  const explainError=await page.locator('#status').innerText();
  allow=true;await page.getByRole('button',{name:'Retry classes',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'Retry classes',exact:true}).isDisabled(),true);
  assert.equal(await editor.getByLabel('Show your work or describe your approach').inputValue(),'Keep my unsaved working');
- releaseRetry();await page.waitForFunction(()=>document.querySelector('#class-context').textContent==='Working in Algebra 1');
+ releaseRetry();await page.waitForFunction(()=>document.querySelector('#learning-class')?.selectedOptions[0]?.textContent==='Algebra 1'&&document.querySelector('#class-context').textContent==='');
  assert.equal(await page.getByRole('button',{name:'Retry classes',exact:true}).isVisible(),false);
  assert.equal(await page.locator('#learning-class option').count(),1);
  await page.waitForFunction(()=>document.querySelector('#model-status').textContent.startsWith('2 configured'));
@@ -109,13 +109,13 @@ async function checkModelOnlyRetry(browser){
  await page.locator('.learning-options summary').click();
  const retry=page.getByRole('button',{name:'Retry models',exact:true});await retry.waitFor();
  assert.equal(await page.locator('#model-status').innerText(),'Could not load your teaching models. Check your Silas connection or sign in/pair this device, then retry.');
- await page.waitForFunction(()=>document.querySelector('#class-context').textContent==='Working in Algebra 1'&&document.querySelector('#status').textContent.startsWith('Ready'));
+ await page.waitForFunction(()=>document.querySelector('#learning-class')?.selectedOptions[0]?.textContent==='Algebra 1'&&document.querySelector('#class-context').textContent===''&&document.querySelector('#status').textContent.startsWith('Ready'));
  await retry.click();await retry.dispatchEvent('click');
  assert.equal(await retry.isDisabled(),true);
  releaseModels();await page.waitForFunction(()=>document.querySelector('#teaching-model').value==='recovered');
  assert.equal(calls,2,'pending model retry is coalesced');
  assert.equal(await retry.isVisible(),false);
- assert.equal(await page.locator('#class-context').innerText(),'Working in Algebra 1');
+ assert.equal(await page.locator('#learning-class option:checked').innerText(),'Algebra 1');
  assert.equal(await page.locator('#learning-context').inputValue(),'Keep assignment');
  assert.equal(await page.locator('#expression').inputValue(),'2+3');
  assert.match(await page.locator('#status').innerText(),/^Ready/);
@@ -142,11 +142,11 @@ async function checkHistoryContext(browser,engineName) {
  await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready')&&document.querySelector('#learning-class').value==='102');
  assert.equal(await page.locator('#expression').inputValue(),'Find the slope.','math startup preserves launch problem');
  assert.equal(await page.locator('#learning-context').inputValue(),'Write a line through (-2,8) and (-6,0).');
- assert.equal(await page.locator('#class-context').innerText(),'Working in Algebra 1');
+ assert.equal(await page.locator('#learning-class option:checked').innerText(),'Algebra 1');
  assert.equal(await page.locator('#lesson-context img').count(),0,'launch content is text, not markup');
  assert.match(await page.locator('#lesson-context').innerText(),/Chapter 4 <img/);
- await page.getByRole('button',{name:'Explain steps',exact:true}).click();
- await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Source-guided'));
+ await page.getByRole('button',{name:'Help me work through it',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Let’s work through it'));
  assert.equal(sent.context,'Write a line through (-2,8) and (-6,0).');assert.equal(sent.classId,'102');
  await page.getByRole('button',{name:'Open saved work',exact:true}).click();
  await page.locator('.saved-work-card').first().waitFor();
@@ -168,7 +168,7 @@ async function checkHistoryContext(browser,engineName) {
  assert.equal(await page.locator('#saved-work-history').isVisible(),false);
  assert.equal(await page.getByRole('button',{name:'Open saved work',exact:true}).isVisible(),true);
  await page.locator('#learning-class').selectOption('101');
- assert.equal(await page.locator('#class-context').innerText(),'Working in Precalculus');
+ assert.equal(await page.locator('#learning-class option:checked').innerText(),'Precalculus');
  await page.goto(server.origin+'/?second#'+new URLSearchParams({classId:'unlinked',context:'x'.repeat(4000),problem:'y'.repeat(7000)}));
  await page.waitForFunction(()=>document.querySelector('#learning-class').options.length===2);
  assert.equal(await page.locator('#learning-class').inputValue(),'101','unlinked launch class is never added to enrollment');
@@ -257,11 +257,13 @@ try {
    await page.waitForFunction(()=>document.querySelector('#learning-class')?.value==='algebra'&&!document.querySelector('[data-action="explain"]').disabled);
    // Arbitrary and invalid math go to the service; there is no template allowlist.
    for(const input of ['Find a line through two points','ln(x^2/sqrt(4x+1))','log(-3)']){
-    await page.locator('#expression').fill(input);await page.getByRole('button',{name:'Explain steps',exact:true}).click();
-    await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Source-guided'));
+    await page.locator('#expression').fill(input);await page.getByRole('button',{name:'Help me work through it',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Let’s work through it'));
+    assert.equal(await page.evaluate(()=>document.activeElement?.tagName==='H2'&&Boolean(document.activeElement.closest('[data-output-id]'))),true,'new explanation receives focus where the student can read it');
     assert.equal(problem.problem,input);assert.equal(problem.classId,'algebra');
    }
    const panel=page.locator('.feedback').last();
+   await panel.getByRole('button',{name:'Annotate',exact:true}).click();
    await panel.getByRole('button',{name:'Comment on step 1',exact:true}).click();
    await panel.getByLabel('Your comment',{exact:true}).fill('Why subtract?');
    await panel.getByRole('button',{name:'Add comment',exact:true}).click();
@@ -289,6 +291,7 @@ try {
    assert.equal(outputReads.get('/api/brainfood/math/outputs/'+result.outputId),1,'list refresh during a pending open must not create a second request/editor');
    assert.match(await reopened.locator('.annotation-list').innerText(),/Why subtract\?/);
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'b=5');
+   await reopened.locator('.feedback-extra summary').click();
    await reopened.getByLabel('What should we explain differently?').fill('Keep my first unsaved note');
    await secondReopened.getByLabel('Show your work or describe your approach').fill('y=3x+5');
    const unloadIsGuarded=()=>page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;});
@@ -307,7 +310,7 @@ try {
    await page.getByRole('button',{name:'Clear session'}).click();
    await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
    await page.locator('#expression').fill('a new problem');
-   await page.locator('#learning-context').fill('a different context');
+   await page.locator('#assignment-notes').evaluate(node=>node.open=true);await page.locator('#learning-context').fill('a different context');
    assert.equal(await reopened.getByLabel('What should we explain differently?').inputValue(),'Keep my first unsaved note');
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'y=3x+5');
    assert.equal(await unloadIsGuarded(),true,'resetting calculator inputs must retain the draft unload guard');
