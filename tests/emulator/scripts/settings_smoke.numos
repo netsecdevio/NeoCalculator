@@ -8,11 +8,11 @@
 # navigation), captures a screenshot, and asserts the active app is "Settings".
 #
 # Settings has NO blinking cursor and NO animation once its 200 ms fade-in
-# settles. The only volatile region is the StatusBar clock (HH:MM, ~x[27..33]
-# y[8..16]) — the same per-minute variation every emulator status-bar screen has,
+# settles. The only volatile region is the right-aligned StatusBar clock (HH:MM, ~x[219..249]
+# y[8..16], mask 215,6,37,13) — the same per-minute variation every emulator status-bar screen has,
 # not a Phase 5A artifact. This phase makes NO golden claim; the screenshot is a
 # CANDIDATE for human review only (a future golden would mask the clock, exactly
-# as calc_1_plus_2 masks the blinking cursor).
+# as calc_1_plus_2 masks its clock; the deterministic cursor is byte-gated).
 #
 # Timing notes (deterministic, step-ms 16):
 #   * 200 frames -> splash (~frame 125) is done; we are in the launcher.

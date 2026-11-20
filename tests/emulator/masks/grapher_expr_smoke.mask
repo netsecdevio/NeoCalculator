@@ -1,2 +1,7 @@
-# Masks the live StatusBar HH:MM clock only. Body/content remains byte-gated.
-4,6,37,13
+# Live HH:MM clock only; every other pixel remains byte-gated.
+# StatusBar.cpp now aligns the clock RIGHT_MID at -70 (upstream e768f9c).
+# Glyphs occupy approximately x219..249, y8..16; this rectangle preserves
+# the former 37x13 mask area at the new location, away from title and RAD.
+# The old left-side rectangle is removed. User approved the current UI
+# reference on 2026-11-20; source images: PR7 CI run 43110948963.
+215,6,37,13

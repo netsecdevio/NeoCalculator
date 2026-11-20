@@ -1,5 +1,7 @@
 # NumOS — TeX-Parity Typesetting Specification
 
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
+
 > **Normative typesetting-parity spec** for the VPAM math renderer (program code **TXP**).
 > Defines, operationally, what "TeX-quality typesetting" means for NumOS on the ILI9341 320×240 /
 > ESP32-S3 N16R8 target, measures the current renderer against TeXbook Appendix G and the OpenType
@@ -716,7 +718,7 @@ never invent commands). Two script archetypes, used by every wave (full listings
 New stems: add to `scripts/generate-emulator-candidates.py` in the same PR (warning-only until
 blessed, golden-policy spec §C); goldens land under `tests/emulator/golden/<stem>.ppm` with a
 mask **only if** the capture shows the StatusBar clock (showcase and calc screens do — reuse the
-standard rect `4,6,37,13`; never mask math-canvas pixels).
+standard rect `215,6,37,13`; never mask math-canvas pixels).
 
 ### G.9 Per-phase RAM/flash budget rule
 
