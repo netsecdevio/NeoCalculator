@@ -100,6 +100,22 @@ FSF postal-address paragraph with a web link.
 
 ## Font software and generated derivatives
 
+### JetBrains Mono
+
+- Source: `wasm/math/branding/JetBrainsMono-Regular.woff2`
+- Upstream: <https://github.com/JetBrains/JetBrainsMono>
+- Exact revision: `19371302b95d218af43299bce79ddbddd0bc364d`
+- Exact path: `fonts/webfonts/JetBrainsMono-Regular.woff2`
+- License: OFL-1.1, preserved in `wasm/math/branding/JetBrainsMono-OFL.txt`
+- Used locally in silascalc math fields; no remote font request is required.
+
+### Silas artwork
+
+The silascalc app icon and workspace mark use the project owner's approved
+Silas brand artwork from `silas-next/identity/branding/icons/dark`, revision
+`e0855cfba1adff1505314717c56eacb090a72a85`. Branding does not replace or
+relicense the NeoCalculator/NumOS source or its upstream copyright notices.
+
 ### Montserrat
 
 - Source: `assets/fonts/Montserrat-Regular.ttf`

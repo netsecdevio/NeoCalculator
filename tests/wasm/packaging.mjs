@@ -7,8 +7,8 @@ const root=resolve('.'), temp=await mkdtemp(join(tmpdir(),'numos-package-'));
 try {
   execFileSync('git',['clone','--shared','--no-checkout',root,temp],{stdio:'pipe'});
   execFileSync('git',['checkout','HEAD','--','wasm/math','wasm/emscripten.version','.gitignore'],{cwd:temp,stdio:'pipe'});
-  // Test the current candidate packager, including local edits, in an isolated checkout.
-  await cp(join(root,'wasm/math/package.mjs'),join(temp,'wasm/math/package.mjs'));
+  // Test the current candidate packager and its bundled UI assets in isolation.
+  await cp(join(root,'wasm/math'),join(temp,'wasm/math'),{recursive:true});
   await mkdir(join(temp,'out/wasm-math'),{recursive:true});
   await cp(join(root,'out/wasm-math/release'),join(temp,'out/wasm-math/release'),{recursive:true});
   const build=async()=>{

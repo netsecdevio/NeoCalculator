@@ -1,5 +1,7 @@
 # NumOS — Architecture Ground Truth
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > Authoritative description of the **actual current architecture** of NumOS, derived from source, build files, tests, CI, and runtime verification — not from README/PROJECT_BIBLE claims.
 >
 > Audit date: 2026-07-01 · Branch: `claude/numos-architecture-audit-hqx6y9` (clean tree, based on `main` @ `8662f47`)
