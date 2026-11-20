@@ -8,7 +8,11 @@ Native Mac build:
     brew install platformio sdl2 sdl3 pkg-config gettext
     PLATFORMIO_BUILD_DIR="$PWD/out/native-build" pio run -e emulator_pc
     out/native-build/emulator_pc/program --headless --deterministic --frames 7000 --script tests/emulator/scripts/production_demo_acceptance.numos
-    python3 scripts/package-macos.py out/native-build/emulator_pc/program out/NeoCalculator.app
+    # Activate the installed Emscripten 6.0.3 environment first.
+    bash wasm/math/build.sh Release
+    python3 scripts/package-macos.py out/native-build/emulator_pc/program out/silascalc.app
+
+The default package includes the shared learning workspace and native “Connect to Silas…” setup. Build from a clean reviewed checkout. `--learning-workspace` remains an explicit alias for the default; `--emulator-only` opts into the legacy simulator without learning or pairing.
 
 Use a fresh candidate app destination; the packager refuses to overwrite an existing app. It packages Homebrew SDL2 compatibility, its dynamically loaded SDL3 dependency, and linked non-system libraries. It signs locally with an ad-hoc identity, not an Apple distribution certificate. Runtime state lives in the user's Application Support directory. Current build is host architecture only.
 
