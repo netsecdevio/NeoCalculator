@@ -1,24 +1,7 @@
-# Ignore-rect mask for math_showcase_smoke (NumOS SDL2 emulator visual test).
-#
-# Reason: the Math Showcase renders a curated case (1 + 2/3 + x^2) through the same
-# accepted MathCanvas the firmware uses, with the cursor OFF — so the math layout is
-# byte-stable within and across runs. The ONLY volatile region across separate
-# launches is the StatusBar clock, identical to settings_smoke: the clock label is
-# drawn by StatusBar::updateClock() from the real wall clock (time() -> localtime ->
-# "%02d:%02d", src/ui/StatusBar.cpp), so HH:MM reflects the minute each scripted run
-# executes on. This is expected per-minute UI nondeterminism, NOT a renderer bug —
-# the renderer geometry is frozen, so it is masked in the comparator, never edited.
-#
-# Region: same StatusBar clock as settings_smoke. The label is LV_ALIGN_LEFT_MID,6
-# in lv_font_montserrat_12 (StatusBar.cpp:61-65), always 5 glyphs ("HH:MM"), box
-# ~x[6..38] y[8..16]. A jitter diff across a minute rollover put the changed pixels
-# at x[31..37] y[8..16] (minute-units digit); the HOUR digits can also change
-# between arbitrary launches, so the mask covers the WHOLE label, not just minutes.
-#
-# Rect = full HH:MM label box (~x[6..38] y[8..16]) padded ~2px on each side ->
-# x[4..40] y[6..18]. Tight to the clock: it does NOT cover the showcased math
-# expression/fraction/superscript (rendered in the body, below the y=24 StatusBar
-# separator), nor the centered title or the right-aligned battery/angle/modifier.
-#
-# x,y,w,h
-4,6,37,13
+# Live HH:MM clock only; every other pixel remains byte-gated.
+# StatusBar.cpp now aligns the clock RIGHT_MID at -70 (upstream e768f9c).
+# Glyphs occupy approximately x219..249, y8..16; this rectangle preserves
+# the former 37x13 mask area at the new location, away from title and RAD.
+# The old left-side rectangle is removed. User approved the current UI
+# reference on 2026-11-20; source images: PR7 CI run 43110948963.
+215,6,37,13

@@ -29,6 +29,7 @@ final class NoRedirect:NSObject,URLSessionTaskDelegate {
     func urlSession(_ session:URLSession,task:URLSessionTask,willPerformHTTPRedirection response:HTTPURLResponse,newRequest request:URLRequest,completionHandler:@escaping(URLRequest?)->Void){completionHandler(nil)}
 }
 final class LocalCalculatorServer {
+    let capability=UUID().uuidString+UUID().uuidString
     let session=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     let queue=DispatchQueue(label:"calculator.http")
     let root:URL
@@ -80,9 +81,10 @@ final class LocalCalculatorServer {
     func handle(_ c:NWConnection,_ method:String,_ target:String,_ headers:[String:String],_ body:Data) {
         let origin="http://127.0.0.1:\(port)"
         guard headers["host"]=="127.0.0.1:\(port)",let path=URLComponents(string:target)?.path else{reply(c,403,"text/plain",Data());return}
-        let isRead = path=="/api/brainfood/math/models" || path=="/api/brainfood/math/classes"
+        let isRead = path=="/api/brainfood/math/models" || path=="/api/brainfood/math/classes" || path=="/api/brainfood/math/outputs" || path.range(of:"^/api/brainfood/math/outputs/[0-9a-f-]{36}$",options:.regularExpression) != nil
         let isWrite = path=="/api/brainfood/math/explain" || path.range(of:"^/api/brainfood/math/outputs/[0-9a-f-]{36}/feedback$",options:.regularExpression) != nil
         if isRead || isWrite {
+            guard headers["x-calculator-capability"]==capability else{reply(c,403,"application/json",Data("{}".utf8));return}
             guard (isRead && method=="GET") || (isWrite && method=="POST" && headers["origin"]==origin) else{reply(c,403,"application/json",Data("{}".utf8));return}
             guard let token=deviceToken() else{reply(c,401,"application/json",Data("{}".utf8));return}
             var request=URLRequest(url:URL(string:"https://brainfood.silas-ai.io"+path)!)
@@ -97,7 +99,7 @@ final class LocalCalculatorServer {
         let name=path=="/" ? "index.html" : String(path.dropFirst())
         guard method=="GET",files.contains(name),!name.contains("/"),let data=try? Data(contentsOf:root.appendingPathComponent(name)) else{reply(c,404,"text/plain",Data());return}
         let ext=(name as NSString).pathExtension
-        let mime=["html":"text/html; charset=utf-8","js":"text/javascript","css":"text/css","json":"application/json","wasm":"application/wasm"][ext] ?? "text/plain"
+        let mime=["html":"text/html; charset=utf-8","js":"text/javascript","css":"text/css","json":"application/json","wasm":"application/wasm","woff2":"font/woff2","png":"image/png"][ext] ?? "text/plain"
         reply(c,200,mime,data)
     }
     func reply(_ c:NWConnection,_ status:Int,_ mime:String,_ body:Data) {
@@ -107,19 +109,67 @@ final class LocalCalculatorServer {
     }
 }
 final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
-    var window:NSWindow!;var server:LocalCalculatorServer!;var localHost:String?
+    var window:NSWindow!;var server:LocalCalculatorServer!;var localHost:String?;var workspace:WKWebView?
+    var pairingInFlight=false
+    let pairingSession=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     func applicationDidFinishLaunching(_ note:Notification){
+        NSApp.appearance=NSAppearance(named:.darkAqua)
         do {
             let resources=Bundle.main.resourceURL!
             server=try LocalCalculatorServer(root:resources.appendingPathComponent("calculator"))
             window=NSWindow(contentRect:NSRect(x:0,y:0,width:1050,height:850),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
-            window.title="NeoCalculator — Learning Workspace";window.center()
-            let view=WKWebView(frame:window.contentView!.bounds);view.autoresizingMask=[.width,.height];view.navigationDelegate=self;window.contentView=view
-            let bar=NSMenu();let item=NSMenuItem();let menu=NSMenu();menu.addItem(withTitle:"Open calculator emulator",action:#selector(openEmulator),keyEquivalent:"e");menu.addItem(.separator());menu.addItem(withTitle:"Quit NeoCalculator",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q");item.submenu=menu;bar.addItem(item);NSApp.mainMenu=bar
+            window.title="silascalc";window.center()
+            let config=WKWebViewConfiguration()
+            let script="""
+            (()=>{const original=window.fetch.bind(window);const capability='\(server.capability)';window.fetch=(input,options={})=>{const url=new URL(typeof input==='string'?input:input.url,location.href);if(url.origin===location.origin&&url.pathname.startsWith('/api/brainfood/math/')){const headers=new Headers(options.headers||{});headers.set('X-Calculator-Capability',capability);return original(input,{...options,headers});}return original(input,options);};})();
+            """
+            config.userContentController.addUserScript(WKUserScript(source:script,injectionTime:.atDocumentStart,forMainFrameOnly:true))
+            let view=WKWebView(frame:window.contentView!.bounds,configuration:config);view.autoresizingMask=[.width,.height];view.navigationDelegate=self;window.contentView=view;workspace=view
+            let bar=NSMenu();let item=NSMenuItem();let menu=NSMenu();menu.addItem(withTitle:"Connect to Silas…",action:#selector(connectToSilas),keyEquivalent:",");menu.addItem(withTitle:"Open silascalc simulator",action:#selector(openEmulator),keyEquivalent:"e");menu.addItem(.separator());menu.addItem(withTitle:"Quit silascalc",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q");item.submenu=menu;bar.addItem(item);NSApp.mainMenu=bar
             try server.start{url in self.localHost=url.absoluteString.replacingOccurrences(of:"/index.html",with:"");view.load(URLRequest(url:url))}
             window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
         } catch {let alert=NSAlert();alert.messageText="Calculator files could not be opened.";alert.informativeText="Please reinstall the application.";alert.runModal();NSApp.terminate(nil)}
     }
+    @objc func connectToSilas(){
+        guard !pairingInFlight else{return}
+        let alert=NSAlert();alert.messageText="Connect silascalc to your classes"
+        alert.informativeText="Enter the setup code from your parent or teacher. Save or submit any open notes first: connecting reloads this workspace."
+        alert.addButton(withTitle:"Connect");alert.addButton(withTitle:"Cancel")
+        let field=NSSecureTextField(frame:NSRect(x:0,y:0,width:300,height:28));field.placeholderString="Setup code";field.setAccessibilityLabel("Silas setup code");alert.accessoryView=field
+        alert.window.initialFirstResponder=field
+        guard alert.runModal() == .alertFirstButtonReturn else{field.stringValue="";return}
+        let code=field.stringValue.filter{!$0.isWhitespace && $0 != "-"};field.stringValue=""
+        guard code.range(of:"^([0-9]{6}|[0-9]{8})$",options:.regularExpression) != nil else{connectionMessage("Check the setup code","Enter the 6 or 8 digits from your parent or teacher.");return}
+        pairingInFlight=true;window.title="silascalc — Connecting…"
+        var request=URLRequest(url:URL(string:"https://brainfood.silas-ai.io/api/devices/claim")!);request.httpMethod="POST";request.timeoutInterval=30
+        request.setValue("application/json",forHTTPHeaderField:"Content-Type")
+        request.httpBody=try? JSONSerialization.data(withJSONObject:["code":code,"device_name":"silascalc for Mac"])
+        pairingSession.dataTask(with:request){data,response,error in
+            var message="Could not connect. Check your internet connection and try again."
+            var connected=false
+            if error==nil,let response=response as? HTTPURLResponse {
+                switch response.statusCode {
+                case 404:message="That code was not found. Check it or ask for a new setup code."
+                case 409:message="That code was already used. Ask for a new setup code."
+                case 410:message="That code expired. Ask for a new setup code."
+                case 429:message="Too many attempts. Wait a little before trying again."
+                default:break
+                }
+                if response.statusCode==200,response.url?.host=="brainfood.silas-ai.io",response.url?.path=="/api/devices/claim",response.value(forHTTPHeaderField:"Content-Type")?.contains("application/json")==true,
+                   let data=data,data.count<65536,let value=try? JSONSerialization.jsonObject(with:data) as? [String:Any],let token=value["device_token"] as? String,!token.isEmpty,token.count<4096,
+                   let device=value["device_id"] as? String,!device.isEmpty {
+                    connected=saveToken(token)
+                    if !connected{message="The connection could not be saved in Keychain. Ask for a new setup code and try again."}
+                }
+            }
+            DispatchQueue.main.async {
+                self.pairingInFlight=false;self.window.title="silascalc"
+                if connected{self.workspace?.reload();self.connectionMessage("Connected to Silas","Your connection is saved securely on this Mac.")}
+                else{self.connectionMessage("Connection not completed",message)}
+            }
+        }.resume()
+    }
+    func connectionMessage(_ title:String,_ detail:String){let alert=NSAlert();alert.messageText=title;alert.informativeText=detail;alert.addButton(withTitle:"OK");alert.runModal()}
     func webView(_ webView:WKWebView,decidePolicyFor action:WKNavigationAction,decisionHandler:@escaping(WKNavigationActionPolicy)->Void){
         guard let url=action.request.url else{decisionHandler(.cancel);return}
         if url.absoluteString.hasPrefix((localHost ?? "invalid")+"/"){decisionHandler(.allow);return}

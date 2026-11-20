@@ -35,4 +35,5 @@ jobs:
       - run: node tests/wasm/math.mjs
       - run: node tests/wasm/workspace.mjs
       - run: node tests/wasm/learning-steps.mjs
+      - run: node tests/wasm/branding.mjs
       - run: node tests/wasm/packaging.mjs
