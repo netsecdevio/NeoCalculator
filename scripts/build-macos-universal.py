@@ -25,7 +25,7 @@ def main():
     if not 1 <= args.jobs <= 32: parser.error("jobs must be between 1 and 32")
     repo = Path(__file__).resolve().parents[1]
     root = args.output.resolve()
-    if root == repo or root in repo.parents or root.suffix == ".app":
+    if root == repo or root in repo.parents or any(part.suffix.lower() == ".app" for part in (root, *root.parents)):
         parser.error("Choose an isolated build directory, never a source parent or installed app")
     root.mkdir(parents=True, exist_ok=True)
     prefix = root / "prefix"
