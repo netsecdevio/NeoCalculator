@@ -22,7 +22,7 @@
 - **Goldens:** 19 under `tests/emulator/golden/`. **Masks:** 18 (every golden
   except `launcher_smoke`, which has no StatusBar and is byte-gated;
   `masks/README.md:13-14`). All 18 masks carry the single shared clock rect
-  `4,6,37,13`.
+  `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`).
 - **Candidate stems:** 25 in `scripts/generate-emulator-candidates.py:39-143`
   (frames 800 for open+shot smokes, 1400 for typing-heavy runs). Six stems are
   **warning-only** (candidate generated, no committed golden):

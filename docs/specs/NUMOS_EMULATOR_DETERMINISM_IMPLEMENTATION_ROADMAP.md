@@ -25,7 +25,7 @@ Rationale: FIX-01/03 + CI-01 remove the tracked-file hazard with tiny diffs and 
 ## EMUDET-01 — Deterministic clock injection (virtual `time()`)
 
 - **Motivation:** `--deterministic` covers only LVGL ticks; the StatusBar clock reads host wall time, forcing 18 identical masks and blocking any "byte-identical without masks" claim. EMUDET §B.5/§D.1; SBAR SB-03.
-- **Evidence:** `StatusBar.cpp:205-225` (`time(nullptr)`); tick swap `NativeHal.cpp:1998`; masks all `4,6,37,13` (`tests/emulator/masks/README.md:36-44`); prior real CI failure from mask under-coverage (`masks/README.md:46-54`).
+- **Evidence:** `StatusBar.cpp:205-225` (`time(nullptr)`); tick swap `NativeHal.cpp:1998`; masks all `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) (`tests/emulator/masks/README.md:36-44`); prior real CI failure from mask under-coverage (`masks/README.md:46-54`).
 - **Exact files:** `src/ui/StatusBar.cpp` (clock read via new seam), new `src/hal/Clock.h` (or extension of the HAL boundary), `src/hal/NativeHal.cpp` (implement seam: deterministic → `epoch0 + g_detTick`, else host; `--epoch` flag; banner line), firmware side trivially forwards to `time()` (no behavior change).
 - **Desired behavior:** in `--deterministic`, HH:MM is a pure function of frame index and epoch; default epoch 2026-01-01 00:00 (mirrors firmware bootstrap `StatusBar.cpp:125-142`); `--epoch <unix>` overrides.
 - **Non-goals:** firmware uptime rendering (SBAR PD-B2, firmware ticket); periodic clock refresh policy (SBAR C.7); mask deletion (separate re-bless wave).

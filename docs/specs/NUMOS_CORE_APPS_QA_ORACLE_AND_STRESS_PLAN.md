@@ -35,7 +35,7 @@
 ### A.2 Fixtures
 
 71 scripts / 19 goldens (+README) / 18 masks (all masks = the single StatusBar-clock rect
-`4,6,37,13`; `launcher_smoke` is the only maskless golden). Per-app: Calculation 19 scripts
+`4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`); `launcher_smoke` is the only maskless golden). Per-app: Calculation 19 scripts
 (2 goldens), Grapher 36+1 scripts (6 goldens), Stats/Prob/Seq/Reg 2 each (2 goldens each),
 Settings 1 (1), MathShowcase 2 (1), launcher/menu 4 (1), input parity 1. Host tests: exactly one —
 `tests/host/keycode_digit_test.cpp` (keycode digit helper).

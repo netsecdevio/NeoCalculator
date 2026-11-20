@@ -718,7 +718,7 @@ never invent commands). Two script archetypes, used by every wave (full listings
 New stems: add to `scripts/generate-emulator-candidates.py` in the same PR (warning-only until
 blessed, golden-policy spec §C); goldens land under `tests/emulator/golden/<stem>.ppm` with a
 mask **only if** the capture shows the StatusBar clock (showcase and calc screens do — reuse the
-standard rect `4,6,37,13`; never mask math-canvas pixels).
+standard rect `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`); never mask math-canvas pixels).
 
 ### G.9 Per-phase RAM/flash budget rule
 
