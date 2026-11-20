@@ -36,6 +36,16 @@ def sign(path):
     if args.sign_identity: command += ["--options", "runtime", "--timestamp"]
     subprocess.run(command + [str(path)], check=True)
 
+def notarize(path, receipt):
+    if receipt.exists(): raise SystemExit("Notary receipt already exists; preserve it and choose a new installer name")
+    result = subprocess.run(["xcrun", "notarytool", "submit", str(path), "--keychain-profile", args.notary_profile,
+                             "--wait", "--timeout", "30m", "--output-format", "json"], capture_output=True, text=True)
+    receipt.write_text(result.stdout); receipt.chmod(0o600)
+    try: response = json.loads(result.stdout)
+    except ValueError: raise SystemExit("Notarization did not produce a receipt; check the configured Keychain profile")
+    if result.returncode != 0 or response.get("status") != "Accepted":
+        raise SystemExit("Notarization was not accepted; candidate is not ready to distribute. Receipt: " + str(receipt))
+
 app = args.destination.resolve()
 if app.exists():
     raise SystemExit("Destination already exists; preserve it and choose a new candidate path")
@@ -162,6 +172,16 @@ if args.sign_identity:
         raise SystemExit("Developer ID/hardened-runtime verification failed")
 if args.dmg:
     dmg = args.dmg.resolve(); dmg.parent.mkdir(parents=True, exist_ok=True)
+    if args.notary_profile:
+        # Staple the application first so dragging it out of the DMG preserves
+        # its offline ticket. A ticket on the disk image alone is insufficient.
+        with tempfile.TemporaryDirectory(prefix="silascalc-notary-") as folder:
+            archive = Path(folder) / "silascalc.zip"
+            subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(archive)], check=True)
+            notarize(archive, dmg.with_suffix(".app.notary.json"))
+        subprocess.run(["xcrun", "stapler", "staple", str(app)], check=True)
+        subprocess.run(["xcrun", "stapler", "validate", str(app)], check=True)
+        subprocess.run(["spctl", "--assess", "--type", "execute", str(app)], check=True)
     with tempfile.TemporaryDirectory(prefix="silascalc-installer-") as folder:
         stage = Path(folder)
         shutil.copytree(app, stage / "silascalc.app", symlinks=True)
@@ -169,16 +189,7 @@ if args.dmg:
         subprocess.run(["hdiutil", "create", "-volname", "silascalc", "-srcfolder", str(stage), "-format", "UDZO", str(dmg)], check=True)
     sign(dmg)
     if args.notary_profile:
-        receipt = dmg.with_suffix(".notary.json")
-        if receipt.exists(): raise SystemExit("Notary receipt already exists; preserve it and choose a new installer name")
-        result = subprocess.run(["xcrun", "notarytool", "submit", str(dmg), "--keychain-profile", args.notary_profile,
-                                 "--wait", "--timeout", "30m", "--output-format", "json"], capture_output=True, text=True)
-        # Preserve Apple's submission ID/status privately for resuming or diagnosis.
-        receipt.write_text(result.stdout); receipt.chmod(0o600)
-        try: response = json.loads(result.stdout)
-        except ValueError: raise SystemExit("Notarization did not produce a receipt; check the configured Keychain profile")
-        if result.returncode != 0 or response.get("status") != "Accepted":
-            raise SystemExit("Notarization was not accepted; candidate is not ready to distribute. Receipt: " + str(receipt))
+        notarize(dmg, dmg.with_suffix(".notary.json"))
         subprocess.run(["xcrun", "stapler", "staple", str(dmg)], check=True)
         subprocess.run(["xcrun", "stapler", "validate", str(dmg)], check=True)
         subprocess.run(["spctl", "--assess", "--type", "open", "--context", "context:primary-signature", str(dmg)], check=True)
