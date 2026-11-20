@@ -1,5 +1,7 @@
 # NumOS — Emulator CI Artifact & Golden Policy Specification
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > **What "done" means:** every CI failure ships the evidence needed to diagnose it without a local repro (logs, screenshots, visual diffs, sandbox state); every golden/mask/candidate has an explicit lifecycle state; masks stay a single-purpose clock exception until the clock is deterministic, then retire; and CI proves the tree stays clean. Companion docs: `NUMOS_EMULATOR_DETERMINISM_AND_FIXTURE_HYGIENE_SPEC.md` (EMUDET), `NUMOS_EMULATOR_PERSISTENCE_SANDBOX_SPEC.md` (SANDBOX), `NUMOS_EMULATOR_HOST_PORTABILITY_SPEC.md` (PORT), `NUMOS_EMULATOR_DETERMINISM_IMPLEMENTATION_ROADMAP.md` (EMUROAD). Golden governance builds on `tests/emulator/golden/README.md` and `tests/emulator/masks/README.md` (both authoritative today) and on SCQA §D/§G; it must not contradict them.
 >
 > Audit base: branch `claude/numos-emulator-determinism-specs-69nso8` (2026-07-04). **[V]** verified `file:line` · **[P]** proposed. SPEC-ONLY.

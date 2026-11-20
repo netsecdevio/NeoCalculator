@@ -173,10 +173,10 @@ def promote_one(stem, force, dry_run):
     print("     %-18s CI will use: %s" % ("", mode))
     if "no mask" in mode:
         # Heads-up only — this tool NEVER creates a mask. If a screen has a
-        # blinking cursor it will fail a byte-exact gate and needs a tight mask
+        # live StatusBar clock it will fail a byte-exact gate and needs a tight mask
         # authored by hand. See tests/emulator/masks/README.md.
         print("     %-18s note: no mask -> byte-exact gate. If this screen has a "
-              "blinking cursor" % "")
+              "live StatusBar clock" % "")
         print("     %-18s       it needs a hand-authored mask "
               "(tests/emulator/masks/README.md)." % "")
     return 0

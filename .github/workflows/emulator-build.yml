@@ -830,7 +830,7 @@ jobs:
       #   * compares each candidate to its accepted golden under
       #     tests/emulator/golden/ IFF that golden exists. (Phase 4B-B) If a
       #     matching ignore-rect mask exists under tests/emulator/masks/, the
-      #     compare ignores those volatile regions (the blinking cursor); with no
+      #     compare ignores those volatile regions (the live HH:MM clock); with no
       #     mask the compare is byte-exact, exactly as before.
       # A missing golden is a WARNING, not a failure — so an unreviewed image can
       # never silently become a passing gate. A present golden that mismatches

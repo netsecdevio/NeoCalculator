@@ -1,5 +1,7 @@
 # NumOS — Emulator App Enablement Parity Spec (P-05)
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > Master document of the P-05 spec set. Companions:
 > `NUMOS_EMULATOR_PER_APP_ENABLEMENT_MATRIX.md` (per-app detail),
 > `NUMOS_EMULATOR_NATIVEHAL_APP_ROUTING_AND_INPUT_SPEC.md` (routing/input),
