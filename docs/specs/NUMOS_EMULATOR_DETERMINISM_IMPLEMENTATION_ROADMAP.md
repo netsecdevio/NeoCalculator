@@ -1,6 +1,6 @@
 # NumOS — Emulator Determinism Implementation Roadmap
 
-> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
 
 > Ordered, self-contained tickets for the four spec packs: `NUMOS_EMULATOR_DETERMINISM_AND_FIXTURE_HYGIENE_SPEC.md` (EMUDET), `NUMOS_EMULATOR_PERSISTENCE_SANDBOX_SPEC.md` (SANDBOX), `NUMOS_EMULATOR_CI_ARTIFACT_AND_GOLDEN_POLICY_SPEC.md` (CIART), `NUMOS_EMULATOR_HOST_PORTABILITY_SPEC.md` (PORT). Cross-links: EMUDET-01 = SBAR SB-03 (emulator half); FIX-01/02 = GSTATE GS-03 / SCQA QA-05 groundwork; CI-04 = SCQA core-QA-05.
 >
@@ -25,7 +25,7 @@ Rationale: FIX-01/03 + CI-01 remove the tracked-file hazard with tiny diffs and 
 ## EMUDET-01 — Deterministic clock injection (virtual `time()`)
 
 - **Motivation:** `--deterministic` covers only LVGL ticks; the StatusBar clock reads host wall time, forcing 18 identical masks and blocking any "byte-identical without masks" claim. EMUDET §B.5/§D.1; SBAR SB-03.
-- **Evidence:** `StatusBar.cpp:205-225` (`time(nullptr)`); tick swap `NativeHal.cpp:1998`; masks all `4,6,37,13` (`tests/emulator/masks/README.md:36-44`); prior real CI failure from mask under-coverage (`masks/README.md:46-54`).
+- **Evidence:** `StatusBar.cpp:205-225` (`time(nullptr)`); tick swap `NativeHal.cpp:1998`; masks all `215,6,37,13` (`tests/emulator/masks/README.md:36-44`); prior real CI failure from mask under-coverage (`masks/README.md:46-54`).
 - **Exact files:** `src/ui/StatusBar.cpp` (clock read via new seam), new `src/hal/Clock.h` (or extension of the HAL boundary), `src/hal/NativeHal.cpp` (implement seam: deterministic → `epoch0 + g_detTick`, else host; `--epoch` flag; banner line), firmware side trivially forwards to `time()` (no behavior change).
 - **Desired behavior:** in `--deterministic`, HH:MM is a pure function of frame index and epoch; default epoch 2026-01-01 00:00 (mirrors firmware bootstrap `StatusBar.cpp:125-142`); `--epoch <unix>` overrides.
 - **Non-goals:** firmware uptime rendering (SBAR PD-B2, firmware ticket); periodic clock refresh policy (SBAR C.7); mask deletion (separate re-bless wave).

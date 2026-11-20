@@ -1,6 +1,6 @@
 # NumOS — Emulator CI Artifact & Golden Policy Specification
 
-> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
 
 > **What "done" means:** every CI failure ships the evidence needed to diagnose it without a local repro (logs, screenshots, visual diffs, sandbox state); every golden/mask/candidate has an explicit lifecycle state; masks stay a single-purpose clock exception until the clock is deterministic, then retire; and CI proves the tree stays clean. Companion docs: `NUMOS_EMULATOR_DETERMINISM_AND_FIXTURE_HYGIENE_SPEC.md` (EMUDET), `NUMOS_EMULATOR_PERSISTENCE_SANDBOX_SPEC.md` (SANDBOX), `NUMOS_EMULATOR_HOST_PORTABILITY_SPEC.md` (PORT), `NUMOS_EMULATOR_DETERMINISM_IMPLEMENTATION_ROADMAP.md` (EMUROAD). Golden governance builds on `tests/emulator/golden/README.md` and `tests/emulator/masks/README.md` (both authoritative today) and on SCQA §D/§G; it must not contradict them.
 >
@@ -33,10 +33,10 @@ Two workflows, deliberately separate (`emulator-build.yml:3-12`):
 
 Per-script contract everywhere: `--headless --deterministic --frames N --quiet`, 60 s `timeout`, exit 0 + `PASS -` present + `FAIL -` absent (e.g. `:314-336`).
 
-## B. Current golden/mask inventory [V]
+## B. Audit-time golden/script inventory; current mask coordinates
 
 - **Goldens (19 + README):** launcher_smoke, calc_1_plus_2, calc_fraction_sum, settings_smoke, math_showcase_smoke, statistics_smoke, statistics_data_smoke, probability_smoke, probability_edit_smoke, sequences_smoke, sequences_edit_smoke, regression_smoke, regression_data_smoke, grapher_smoke, grapher_expr_smoke, grapher_graph_smoke, grapher_table_smoke, grapher_trace_smoke, grapher_templates_smoke [V `ls tests/emulator/golden/`].
-- **Masks (18 + README):** one per golden except `launcher_smoke` (static bar, no clock — `MainMenu.cpp:321-356`); every mask is the identical single clock rect `4,6,37,13` (`tests/emulator/masks/README.md:36-44`).
+- **Current masks (18 + README, refreshed 2026-11-20):** all use the single right-aligned clock rectangle `215,6,37,13`. Seventeen accompany accepted app goldens; the retained Settings mask applies to its candidate. The launcher remains unmasked. See `tests/emulator/masks/README.md` for the current contract.
 - **Candidates without goldens (6):** menu_focus_grapher_smoke, grapher_implicit_x_smoke, grapher_implicit_2x_smoke, grapher_multifn_graph_smoke, grapher_multifn_table_smoke, grapher_expr_scroll_smoke — generated (`generate-emulator-candidates.py:121-143`), uploaded, compare-warned (`emulator-build.yml:602-604`).
 - **Scripts:** 71 `.numos` (`ls tests/emulator/scripts | wc -l`); ~46 run as assert-only CI gates (steps 7–11), 25 feed the visual pipeline, some overlap.
 - **Comparator:** `compare-ppm.py` — dependency-free P6 parse (`:82-143`), rect masks with clipping (`:194-218`), metrics + bbox (`:221-260`), optional `--write-diff` magenta/teal/grayscale diff image (`:263-294`), exit 0/1/2 (`:33-37`). **CI never passes `--write-diff`** (`emulator-build.yml:589,593`).
@@ -63,7 +63,7 @@ Per-script contract everywhere: `--headless --deterministic --frames N --quiet`,
 
 ## E. Mask policy
 
-**Current [V]:** masks are hand-authored, human-committed, single-purpose: the wall-clock `HH:MM` rect `4,6,37,13`, justified per file with reproduced-jitter evidence (`tests/emulator/masks/README.md:88-98`; e.g. `masks/calc_1_plus_2.mask` header). Comparator unions `--ignore-rect` flags and `--mask-file` lines (`compare-ppm.py:324-335`).
+**Current [V]:** masks are hand-authored, human-committed, single-purpose: the wall-clock `HH:MM` rect `215,6,37,13`, justified per file with reproduced-jitter evidence (`tests/emulator/masks/README.md:88-98`; e.g. `masks/calc_1_plus_2.mask` header). Comparator unions `--ignore-rect` flags and `--mask-file` lines (`compare-ppm.py:324-335`).
 
 **Policy [P → CI-05], formalizing the READMEs into checkable rules:**
 1. **Clock-only rect.** Until EMUDET-01, the only permissible mask content is the shared clock rect (optionally per-golden justified sub-rects of it). After EMUDET-01, no new masks at all; existing ones retire with their goldens' next re-bless.
