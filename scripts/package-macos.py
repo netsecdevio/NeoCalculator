@@ -5,7 +5,11 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument("binary", type=Path)
 parser.add_argument("destination", type=Path)
-parser.add_argument("--learning-workspace", action="store_true")
+mode = parser.add_mutually_exclusive_group()
+mode.add_argument("--learning-workspace", dest="learning_workspace", action="store_true", default=True,
+                  help="Package the shared learning workspace (default)")
+mode.add_argument("--emulator-only", dest="learning_workspace", action="store_false",
+                  help="Package only the legacy simulator, without learning or pairing")
 args = parser.parse_args()
 app = args.destination.resolve()
 if app.exists():

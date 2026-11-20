@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createServer} from 'node:http';
 import {chromium,webkit} from 'playwright';
 import {resolve} from 'node:path';
 import {readFile} from 'node:fs/promises';
@@ -40,11 +41,46 @@ async function checkParentBoundary(browser) {
  }
  await page.close();
 }
+async function checkRedirectBoundary(browser) {
+ const targets=[];let status=307,target='';
+ const collector=createServer((request,response)=>{targets.push(request.url);response.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}).end('{}');});
+ const redirector=createServer((request,response)=>{
+  if(request.url==='/client.js'){response.writeHead(200,{'Content-Type':'text/javascript'}).end(transportSource);return;}
+  if(request.url==='/test.html'){response.writeHead(200,{'Content-Type':'text/html'}).end('<script type="module">window.client=await import("./client.js");</script>');return;}
+  if(request.url==='/collector'){targets.push(request.url);response.writeHead(200,{'Content-Type':'application/json'}).end('{}');return;}
+  response.writeHead(status,{location:target}).end();
+ });
+ const listen=server=>new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>resolve(`http://127.0.0.1:${server.address().port}`));});
+ const collectorOrigin=await listen(collector),origin=await listen(redirector);
+ const page=await browser.newPage();
+ try {
+  await page.goto(origin+'/test.html');await page.waitForFunction(()=>window.client);
+  for(status of [307,308])for(target of [origin+'/collector',collectorOrigin+'/collector']) {
+   for(const action of ['explain','feedback','models']) {
+    const rejected=await page.evaluate(async action=>{
+     try {
+      if(action==='explain')await window.client.requestExplanation('private problem','lesson notes','test/model','algebra');
+      else if(action==='feedback')await window.client.saveFeedback('test-output',{feedback:{work:'private learner work'},submit:true});
+      else await window.client.loadModels();
+      return false;
+     }catch{return true;}
+    },action);
+    assert.equal(rejected,true,`${action} rejects ${status} redirect to ${target}`);
+    assert.deepEqual(targets,[],'No learner payload or request reaches a redirect target');
+   }
+  }
+ } finally {
+  await page.close();
+  await Promise.all([collector,redirector].map(server=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();})));
+ }
+}
+
 try {
  for(const engine of [chromium,webkit]) {
   const browser=await engine.launch();
   try{
    await checkParentBoundary(browser);
+   await checkRedirectBoundary(browser);
    const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,failList=false,problem;
    const outputReads=new Map();
    let releaseFirstRead,firstReadStartedResolve,holdFirstRead=true;

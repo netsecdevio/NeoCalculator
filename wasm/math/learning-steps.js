@@ -24,7 +24,7 @@ async function request(action, body) {
   }
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),180000);
   try {
-    const response=await fetch('/api/brainfood/math/'+action,{method:body?'POST':'GET',credentials:'same-origin',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});
+    const response=await fetch('/api/brainfood/math/'+action,{method:body?'POST':'GET',credentials:'same-origin',redirect:'error',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});
     if(!response.ok) {
       if(response.status===401||response.status===403) throw Error('Please sign in or pair this device to ask for teaching help.');
       if(response.status===429) throw Error('The tutor is busy. Please try again shortly.');
