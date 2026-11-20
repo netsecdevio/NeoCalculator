@@ -23,16 +23,36 @@ with tempfile.TemporaryDirectory(prefix="silascalc-package-test-") as folder:
     slices = []
     for arch in ("arm64", "x86_64"):
         target = root / arch
-        run("clang", "-arch", arch, "-mmacosx-version-min=13.0", root / "main.c", "-L" + str(prefix / "lib"), "-lSDL2", "-o", target)
+        run("clang", "-arch", arch, "-mmacosx-version-min=13.0", root / "main.c", "-Wl,-headerpad_max_install_names", "-L" + str(prefix / "lib"), "-lSDL2", "-o", target)
         slices.append(target)
     binary = root / "fixture"
     run("lipo", "-create", *slices, "-output", binary)
     app = root / "candidate.app"
     run("python3", repo / "scripts/package-macos.py", binary, app, "--emulator-only", "--development", "--universal", "--dependency-prefix", prefix)
     executable = app / "Contents/MacOS/numos"
-    links = subprocess.check_output(["otool", "-L", str(executable)], text=True)
-    assert "@rpath" not in links and str(prefix) not in links
-    assert "@executable_path/../Frameworks/libSDL2.dylib" in links
-    run("arch", "-" + platform.machine(), executable)
+    for arch in ("arm64", "x86_64"):
+        links = subprocess.check_output(["otool", "-arch", arch, "-L", str(executable)], text=True)
+        assert "@rpath" not in links and str(prefix) not in links, arch
+        assert "@executable_path/../Frameworks/libSDL2.dylib" in links, arch
+        for library in (app / "Contents/Frameworks").iterdir():
+            links = subprocess.check_output(["otool", "-arch", arch, "-L", str(library)], text=True)
+            assert "@rpath" not in links and str(prefix) not in links, (arch, library)
+        # Inspect both slices everywhere; execute both when Rosetta is available.
+        available = subprocess.run(["arch", "-" + arch, "/usr/bin/true"], capture_output=True).returncode == 0
+        if available: run("arch", "-" + arch, executable)
     run("codesign", "--verify", "--deep", "--strict", app)
-    print("PASS: isolated universal @rpath fixture runs from the packaged bundle")
+    # A prefix-looking absolute load command must not follow a symlink outside.
+    outside = root / "outside.dylib"
+    outside.write_bytes((prefix / "lib/libSDL2.dylib").read_bytes())
+    link = prefix / "lib/escape.dylib"; link.symlink_to(outside)
+    run("install_name_tool", "-change", "@rpath/libSDL2.dylib", prefix.resolve() / "lib/escape.dylib", binary)
+    rejected = subprocess.run(["python3", str(repo / "scripts/package-macos.py"), str(binary), str(root / "escaped.app"),
+        "--emulator-only", "--development", "--universal", "--dependency-prefix", str(prefix)], capture_output=True, text=True)
+    assert rejected.returncode != 0 and "escapes isolated prefix" in rejected.stderr
+    assert not (root / "escaped.app/Contents/Frameworks/outside.dylib").exists()
+    (prefix / "lib/libSDL3.dylib").unlink()
+    (prefix / "lib/libSDL3.dylib").symlink_to(outside)
+    rejected = subprocess.run(["python3", str(repo / "scripts/package-macos.py"), str(binary), str(root / "escaped-sdl.app"),
+        "--emulator-only", "--development", "--universal", "--dependency-prefix", str(prefix)], capture_output=True, text=True)
+    assert rejected.returncode != 0 and "SDL3 dependency escapes isolated prefix" in rejected.stderr
+    print("PASS: both universal dependency slices verified, available slices launched, prefix escapes rejected")

@@ -50,6 +50,8 @@ copied = {}
 # SDL2 compatibility loads SDL3 dynamically, so otool cannot discover it.
 sdl3_dir = str(args.dependency_prefix.resolve() / "lib") if args.dependency_prefix else subprocess.check_output(["pkg-config", "--variable=libdir", "sdl3"], text=True).strip()
 sdl3 = Path(sdl3_dir) / "libSDL3.dylib"
+if args.dependency_prefix and not sdl3.resolve().is_relative_to(args.dependency_prefix.resolve()):
+    raise SystemExit("SDL3 dependency escapes isolated prefix")
 bundled_sdl3 = frameworks / "libSDL3.dylib"
 shutil.copy2(sdl3, bundled_sdl3)
 copied[sdl3.resolve()] = bundled_sdl3
@@ -57,7 +59,9 @@ queue.append(bundled_sdl3)
 subprocess.run(["install_name_tool", "-id", "@executable_path/../Frameworks/libSDL3.dylib", str(bundled_sdl3)], check=True)
 while queue:
     target = queue.pop()
-    lines = subprocess.check_output(["otool", "-L", str(target)], text=True).splitlines()[1:]
+    architectures = subprocess.check_output(["lipo", "-archs", str(target)], text=True).split()
+    lines = sorted({line for arch in architectures for line in subprocess.check_output(
+        ["otool", "-arch", arch, "-L", str(target)], text=True).splitlines()[1:]})
     for line in lines:
         dependency = line.strip().split(" (", 1)[0]
         if dependency.startswith(("/System/Library/", "/usr/lib/")) or dependency == str(target):
@@ -79,6 +83,8 @@ while queue:
             if not dependency.startswith(allowed):
                 raise SystemExit("Native dependency needs an explicit --dependency-prefix: " + dependency)
             source = Path(dependency).resolve()
+            if args.dependency_prefix and not source.is_relative_to(args.dependency_prefix.resolve()):
+                raise SystemExit("Native dependency escapes isolated prefix: " + dependency)
         bundled = frameworks / source.name
         if source not in copied:
             if bundled.exists():
