@@ -1,0 +1,22 @@
+name: Mac connection and packaging
+on:
+  pull_request:
+    paths: ['macos/**', 'scripts/package-macos.py', 'scripts/build-macos-universal.py', 'scripts/sdl2_env.py', 'tests/host/mac_keychain_test.swift', 'tests/host/mac_package_test.py', '.github/workflows/macos-shell.yml']
+permissions:
+  contents: read
+jobs:
+  mac-keychain:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile the native shell
+        run: swiftc macos/LearningCalculator.swift macos/KeychainConnection.swift -o "$RUNNER_TEMP/silascalc-shell" -framework AppKit -framework WebKit -framework Network -framework Security -framework LocalAuthentication
+      - name: Exercise blocked and authorization-required Keychain responses
+        run: |
+          swiftc -D KEYCHAIN_TESTS macos/LearningCalculator.swift macos/KeychainConnection.swift tests/host/mac_keychain_test.swift -o "$RUNNER_TEMP/keychain-test" -framework AppKit -framework WebKit -framework Network -framework Security -framework LocalAuthentication
+          "$RUNNER_TEMP/keychain-test"
+      - name: Validate packaging command
+        run: |
+          python3 -m py_compile scripts/package-macos.py scripts/build-macos-universal.py scripts/sdl2_env.py
+          python3 scripts/package-macos.py --help
+          python3 tests/host/mac_package_test.py
