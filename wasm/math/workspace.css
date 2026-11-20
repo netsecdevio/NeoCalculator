@@ -85,3 +85,14 @@ a { color: var(--silas-accent); text-underline-offset: 3px; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; }
   .feedback button { margin-bottom: 8px; }
 }
+
+.problem-context { margin: 20px 0; padding: 16px; border-left: 3px solid var(--silas-accent); background: var(--silas-field); border-radius: 8px; }
+#class-context { font-weight: 600; margin: 0 0 8px; }
+#lesson-context { color: var(--silas-muted); margin: 0 0 16px; overflow-wrap: anywhere; }
+.saved-work-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0 16px; }
+.saved-work-header h2 { flex: 1 1 160px; margin: 0; }
+#saved-work-index { display: grid; gap: 14px; }
+.saved-work-card { min-width: 0; padding: 18px; border: 1px solid var(--silas-border); border-radius: 12px; background: var(--silas-field); }
+.saved-work-card button { display: block; text-align: left; width: 100%; font-size: 16px; overflow-wrap: anywhere; }
+.saved-work-meta { margin: 12px 0 8px; color: var(--silas-muted); font-size: 14px; overflow-wrap: anywhere; }
+.saved-work-status { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; color: var(--silas-accent); background: var(--silas-soft); }

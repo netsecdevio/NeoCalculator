@@ -2,6 +2,16 @@ import {mountAnnotations} from './annotations.js';
 import {drawGraph} from './graph-view.js';
 import {loadModels,requestExplanation,loadClasses,saveFeedback,loadOutputs,loadOutput} from './learning-steps.js';
 const input = document.querySelector('#expression');
+// Launch context is learner-provided text, not an identity or enrollment grant.
+const launch = new URLSearchParams(window.location.hash.slice(1));
+const launchText = (key,limit) => (launch.get(key)||'').slice(0,limit);
+const lessonTitle=launchText('lessonTitle',160);
+const learningContext=document.querySelector('#learning-context');
+learningContext.value=launchText('context',3000);
+input.value=launchText('problem',6000);
+const lessonHeading=document.querySelector('#lesson-context');
+lessonHeading.textContent=lessonTitle ? 'From your lesson: '+lessonTitle : 'Bring the question you are working on.';
+
 const status = document.querySelector('#status');
 const answer = document.querySelector('#answer');
 const canvas = document.querySelector('#graph');
@@ -20,7 +30,7 @@ async function explain() {
   const version=explanationVersion,token=generation;
   busy(true);status.textContent='Finding relevant sources and asking your teaching model…';
   try {
-    const result=await requestExplanation(text,document.querySelector('#learning-context').value,document.querySelector('#teaching-model').value,document.querySelector('#learning-class').value);
+    const result=await requestExplanation(text,learningContext.value,document.querySelector('#teaching-model').value,document.querySelector('#learning-class').value);
     if(token!==generation || version!==explanationVersion) return;
     if(!Array.isArray(result.steps)||!Array.isArray(result.sources))throw Error('The teaching response could not be read. Please try again.');
     mountFeedback(result);
@@ -62,10 +72,10 @@ function solveText(result) {
   return result.groups.map(group => group.values.map(v => v.variable + ' = ' + nodeText(v.value)).join(', ')).join(' or ');
 }
 function busy(value) { running=value; buttons.forEach(button => { button.disabled = value || (!math && button.dataset.action!=='explain'); }); }
-function reset() { mathLoad=resetMath(); return mathLoad; }
-async function resetMath() {
+function reset(clearInput=true) { mathLoad=resetMath(clearInput); return mathLoad; }
+async function resetMath(clearInput) {
   const token = ++generation; clearExplanation();
-  busy(true); input.value = ''; answer.textContent = ''; canvas.hidden = true;
+  busy(true); if(clearInput) input.value = ''; answer.textContent = ''; canvas.hidden = true;
   document.querySelector('#graph-description').textContent = '';
   status.textContent = 'Starting a fresh session…';
   const previous = math; math = null;
@@ -113,7 +123,7 @@ try {
   const response = await fetch(manifestUrl); if(!response.ok) throw Error('calculator files unavailable');
   const manifest = await response.json();
   const module = await import(new URL(manifest.assets.client.url, manifestUrl));
-  createMath = module.createNumosMath; await reset();
+  createMath = module.createNumosMath; await reset(false);
 } catch(error) { status.textContent='Could not load calculator: '+error.message+'. Choose Clear session to retry, or ask for teaching help.';busy(false); }
 }
 mathLoad=load();
@@ -124,8 +134,24 @@ for(const id of ["learning-context","teaching-model"]) document.getElementById(i
 
 const classSelect=document.createElement('select');classSelect.id='learning-class';
 const classLabel=document.createElement('label');classLabel.htmlFor='learning-class';classLabel.textContent='Your class';
-document.querySelector('label[for="expression"]').before(classLabel,classSelect);
-loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=data.classLabels?.[id]||id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
+document.querySelector('.problem-context').before(classLabel,classSelect);
+const classNames=new Map();
+const className=id=>classNames.get(id)||'Your class';
+function updateClassContext(){
+  document.querySelector('#class-context').textContent=classSelect.value ? 'Working in '+className(classSelect.value) : 'Choose a linked class to save explanations.';
+  document.querySelectorAll('[data-class-label]').forEach(element=>{element.textContent=className(element.dataset.classLabel);});
+}
+classSelect.addEventListener('change',()=>{clearExplanation();updateClassContext();});
+loadClasses().then(data=>{
+  for(const id of data.classes){
+    const name=typeof data.classLabels?.[id]==='string' ? data.classLabels[id] : 'Class '+(classNames.size+1);
+    classNames.set(id,name);
+    const option=document.createElement('option');option.value=id;option.textContent=name;classSelect.append(option);
+  }
+  if(classNames.has(launch.get('classId')))classSelect.value=launch.get('classId');
+  updateClassContext();
+  if(!data.classes.length)status.textContent='No class is linked to this account yet.';
+}).catch(error=>{status.textContent=error.message;});
 const dirtyPanels=new Set();
 // Open editors are independent of the refreshable saved-work index. One editor
 // owns each output's draft/version for the lifetime of this page.
@@ -146,7 +172,8 @@ function mountFeedback(result,saved=null,container=null){
   if(editorTitle){editorTitle.id='saved-output-title-'+result.outputId;container.setAttribute('aria-labelledby',editorTitle.id);}
   const panel=document.createElement('section');panel.className='feedback';
   const heading=document.createElement('h2');heading.textContent='Your notes and work';
-  const description=document.createElement('p');description.textContent='Class: '+result.classId+'. Notes stay attached to this explanation.';
+  const description=document.createElement('p');const label=document.createElement('span');label.dataset.classLabel=result.classId;label.textContent=className(result.classId);
+  description.append(label,document.createTextNode(' · Notes stay attached to this explanation.'));
   panel.append(heading,description);
   const fields=[];
   function field(labelText,maxLength){const label=document.createElement('label'),field=document.createElement('textarea');field.maxLength=maxLength;label.textContent=labelText;label.append(field);panel.append(label);fields.push(field);return field;}
@@ -186,6 +213,7 @@ function mountFeedback(result,saved=null,container=null){
       const response=await saveFeedback(result.outputId,{revision:result.revision,version,submit:submitted,feedback:{...annotations.value(),work:work.value,comment:comment.value,rating:rating.value}});
       version=response.version;if(editing===snapshot)dirtyPanels.delete(panel);
       message.textContent=response.submitted?'Submitted for review.':'Draft saved.';
+      workStates.set(result.outputId,response.submitted?'Submitted for review':'Draft saved');updateHistoryState(result.outputId);
       if(response.submitted){fields.forEach(f=>f.disabled=true);return;}
     }catch(error){message.textContent='Not saved. Your notes are still here. '+error.message;}
     annotations.setDisabled(false);
@@ -195,40 +223,61 @@ function mountFeedback(result,saved=null,container=null){
   // Keep prior work visible even when another explanation is requested.
   if(saved?.submitted){annotations.setDisabled(true);fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
   container.append(panel);workEditors.append(container);openedEditors.set(result.outputId,container);
+  workStates.set(result.outputId,saved?.submitted?'Submitted for review':saved?.version?'Draft saved':'Saved explanation');updateHistoryState(result.outputId);
 }
 
-const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Open saved work';
+const workStates=new Map();
+function updateHistoryState(id){
+  for(const card of document.querySelectorAll('.saved-work-card'))if(card.dataset.savedId===id){
+    card.querySelector('.saved-work-status').textContent=workStates.get(id)||'Saved explanation';
+  }
+}
+const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Open saved work';reopen.setAttribute('aria-expanded','false');reopen.setAttribute('aria-controls','saved-work-history');
+const history=document.createElement('section');history.id='saved-work-history';history.hidden=true;history.setAttribute('aria-label','Saved work');
+const historyHeader=document.createElement('div');historyHeader.className='saved-work-header';
+const historyTitle=document.createElement('h2');historyTitle.textContent='Saved work';
+const refresh=document.createElement('button');refresh.type='button';refresh.textContent='Refresh saved work';
+const close=document.createElement('button');close.type='button';close.textContent='Hide saved work';
 const savedList=document.createElement('div');savedList.id='saved-work-index';savedList.setAttribute('aria-live','polite');
-classSelect.after(reopen,savedList);
+historyHeader.append(historyTitle,refresh,close);history.append(historyHeader,savedList);
+classSelect.after(reopen,history);
 let savedListVersion=0;
-reopen.onclick=async()=>{
-  const request=++savedListVersion;reopen.disabled=true;savedList.setAttribute('aria-busy','true');
+close.onclick=()=>{++savedListVersion;history.hidden=true;reopen.hidden=false;reopen.setAttribute('aria-expanded','false');refresh.disabled=false;savedList.removeAttribute('aria-busy');reopen.focus();};
+async function refreshSavedWork(){
+  const request=++savedListVersion;refresh.disabled=true;savedList.setAttribute('aria-busy','true');
   try{
     const {outputs}=await loadOutputs();
     if(request!==savedListVersion)return;
     const index=document.createDocumentFragment();
-    if(!outputs.length)index.append(document.createTextNode('No saved explanations yet.'));
+    if(!outputs.length)index.append(document.createTextNode('No saved explanations yet. Ask for steps to start.'));
     for(const item of outputs){
-      const button=document.createElement('button');button.type='button';button.textContent=item.title+' — '+item.classId;
+      const card=document.createElement('article');card.className='saved-work-card';card.dataset.savedId=item.outputId;
+      const button=document.createElement('button');button.type='button';button.textContent=item.title||'Saved explanation';
+      const meta=document.createElement('p');meta.className='saved-work-meta';
+      const label=document.createElement('span');label.dataset.classLabel=item.classId;label.textContent=className(item.classId);meta.append(label);
+      const date=new Date(item.created);
+      if(item.created&&!Number.isNaN(date.getTime())){const time=document.createElement('time');time.dateTime=date.toISOString();time.textContent=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(date);meta.append(document.createTextNode(' · '),time);}
+      const state=document.createElement('span');state.className='saved-work-status';state.textContent=workStates.get(item.outputId)||'Saved explanation';
       button.onclick=async()=>{
         if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
         if(pendingReopens.has(item.outputId))return;
         pendingReopens.add(item.outputId);button.disabled=true;
         try{
           const saved=await loadOutput(item.outputId);
-          // A generated explanation or another view may have opened this output
-          // while its saved snapshot was loading. Never replace its current draft.
+          // A generated explanation may have opened this output during the read.
+          // Keep one canonical draft, never replace it with a stale snapshot.
           if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
           const panel=document.createElement('section');panel.dataset.outputId=item.outputId;
-          const h=document.createElement('h2');h.textContent=saved.output.title;
-          panel.append(h);
-          mountFeedback({...saved.output,...item},saved,panel);
+          const h=document.createElement('h2');h.textContent=saved.output.title;panel.append(h);
+          mountFeedback({...saved.output,...item},saved,panel);focusEditor(panel);
         }catch(error){status.textContent=error.message;}
         finally{pendingReopens.delete(item.outputId);button.disabled=false;}
       };
-      index.append(button);
+      card.append(button,meta,state);index.append(card);
     }
     savedList.replaceChildren(index);
   }catch(error){if(request===savedListVersion)savedList.textContent=error.message;}
-  finally{if(request===savedListVersion){reopen.disabled=false;savedList.removeAttribute('aria-busy');}}
-};
+  finally{if(request===savedListVersion){refresh.disabled=false;savedList.removeAttribute('aria-busy');}}
+}
+refresh.onclick=refreshSavedWork;
+reopen.onclick=()=>{reopen.hidden=true;reopen.setAttribute('aria-expanded','true');history.hidden=false;close.focus();void refreshSavedWork();};

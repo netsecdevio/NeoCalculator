@@ -41,6 +41,59 @@ async function checkParentBoundary(browser) {
  }
  await page.close();
 }
+async function checkHistoryContext(browser,engineName) {
+ const page=await browser.newPage({viewport:{width:800,height:1000}});
+ let sent;
+ await page.route('**/api/brainfood/math/**',async route=>{
+  const path=new URL(route.request().url()).pathname;
+  let data={};
+  if(path.endsWith('/classes'))data={classes:['101','102'],classLabels:{101:'Precalculus',102:'Algebra 1'}};
+  else if(path.endsWith('/models'))data={models:[]};
+  else if(path.endsWith('/outputs'))data={outputs:[
+   {outputId:'first',classId:'101',title:'Logarithm practice: explain each step and show how the domain changes',created:'2026-11-20T12:30:00Z'},
+   {outputId:'second',classId:'102',title:'Writing linear equations',created:'2026-11-19T12:30:00Z'},
+  ]};
+  else if(path.endsWith('/explain')){sent=route.request().postDataJSON();data={steps:[],sources:[],model:'test'};}
+  await route.fulfill({json:data});
+ });
+ const fragment=new URLSearchParams({lessonTitle:'Chapter 4 <img src=x onerror=alert(1)>',context:'Write a line through (-2,8) and (-6,0).',problem:'Find the slope.',classId:'102'});
+ await page.goto(server.origin+'/#'+fragment);
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready')&&document.querySelector('#learning-class').value==='102');
+ assert.equal(await page.locator('#expression').inputValue(),'Find the slope.','math startup preserves launch problem');
+ assert.equal(await page.locator('#learning-context').inputValue(),'Write a line through (-2,8) and (-6,0).');
+ assert.equal(await page.locator('#class-context').innerText(),'Working in Algebra 1');
+ assert.equal(await page.locator('#lesson-context img').count(),0,'launch content is text, not markup');
+ assert.match(await page.locator('#lesson-context').innerText(),/Chapter 4 <img/);
+ await page.getByRole('button',{name:'Explain steps',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Source-guided'));
+ assert.equal(sent.context,'Write a line through (-2,8) and (-6,0).');assert.equal(sent.classId,'102');
+ await page.getByRole('button',{name:'Open saved work',exact:true}).click();
+ await page.locator('.saved-work-card').first().waitFor();
+ assert.equal(await page.getByRole('button',{name:'Open saved work',exact:true}).isVisible(),false);
+ assert.equal(await page.locator('.saved-work-card').count(),2);
+ assert.match(await page.locator('.saved-work-card').first().innerText(),/Precalculus/);
+ assert.equal(await page.locator('.saved-work-card').first().locator('time').getAttribute('datetime'),'2026-11-20T12:30:00.000Z');
+ assert.match(await page.locator('.saved-work-card').nth(1).innerText(),/Algebra 1/);
+ const first=await page.locator('.saved-work-card').first().boundingBox(),second=await page.locator('.saved-work-card').nth(1).boundingBox();
+ assert.ok(second.y>=first.y+first.height+10,'history cards have a visible gap');
+ for(const width of [320,768,1024]){
+  await page.setViewportSize({width,height:1000});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'context and history fit '+width);
+ }
+ await page.screenshot({path:'/tmp/silascalc-history-'+engineName+'.png',fullPage:true});
+ await page.getByRole('button',{name:'Hide saved work',exact:true}).click();
+ assert.equal(await page.locator('#saved-work-history').isVisible(),false);
+ assert.equal(await page.getByRole('button',{name:'Open saved work',exact:true}).isVisible(),true);
+ await page.locator('#learning-class').selectOption('101');
+ assert.equal(await page.locator('#class-context').innerText(),'Working in Precalculus');
+ await page.goto(server.origin+'/?second#'+new URLSearchParams({classId:'unlinked',context:'x'.repeat(4000),problem:'y'.repeat(7000)}));
+ await page.waitForFunction(()=>document.querySelector('#learning-class').options.length===2);
+ assert.equal(await page.locator('#learning-class').inputValue(),'101','unlinked launch class is never added to enrollment');
+ assert.equal((await page.locator('#learning-context').inputValue()).length,3000);
+ assert.equal((await page.locator('#expression').inputValue()).length,6000);
+ await page.close();
+}
+
 async function checkRedirectBoundary(browser) {
  const targets=[];let status=307,target='';
  const collector=createServer((request,response)=>{targets.push(request.url);response.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}).end('{}');});
@@ -79,20 +132,21 @@ try {
  for(const engine of [chromium,webkit]) {
   const browser=await engine.launch();
   try{
+   await checkHistoryContext(browser,engine.name());
    await checkParentBoundary(browser);
    await checkRedirectBoundary(browser);
    const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,failList=false,problem;
    const outputReads=new Map();
    let releaseFirstRead,firstReadStartedResolve,holdFirstRead=true;
    const firstReadStarted=new Promise(resolve=>{firstReadStartedResolve=resolve;});
-   const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed-revision',classId:'algebra',title:'Your explanation',steps:[{explanation:'Find the slope',math:'m=2',citationIds:[]}],sources:[],answer:'y=2x+12',limitations:[],model:'test/provider'};
+   const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed-revision',classId:'algebra',title:'Your explanation',created:'2026-11-20T12:30:00Z',steps:[{explanation:'Find the slope',math:'m=2',citationIds:[]}],sources:[],answer:'y=2x+12',limitations:[],model:'test/provider'};
    const secondResult={...result,outputId:'12345678-1234-1234-1234-123456789def',revision:'second-revision',title:'A different explanation',steps:[{explanation:'Use the intercept',math:'b=5',citationIds:[]}],answer:'y=3x+5'};
    let secondSaved={work:'b=5'},secondVersion=0;
    await page.route('**/api/brainfood/math/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname;
     let data={};
     if(path.endsWith('/models'))data={models:[{id:'test/provider',label:'Test model'}],default_model:'test/provider'};
-    else if(path.endsWith('/classes'))data={classes:['algebra']};
+    else if(path.endsWith('/classes'))data={classes:['algebra'],classLabels:{algebra:'Algebra 1'}};
     else if(path.endsWith('/explain')){problem=request.postDataJSON();data=result;}
     else if(path.endsWith('/feedback')){
      if(failSave){await route.fulfill({status:503,json:{}});return;}
@@ -132,13 +186,13 @@ try {
    failSave=false;await panel.getByRole('button',{name:'Save draft'}).click();
    await panel.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
    await page.reload();await page.getByRole('button',{name:'Open saved work'}).click();
-   await page.getByRole('button',{name:'Your explanation — algebra'}).click();
+   await page.getByRole('button',{name:'Your explanation'}).click();
    await firstReadStarted;
-   await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.getByRole('button',{name:'Refresh saved work'}).click();
    await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
-   await page.getByRole('button',{name:'Your explanation — algebra'}).click();
+   await page.getByRole('button',{name:'Your explanation'}).click();
    releaseFirstRead();
-   await page.getByRole('button',{name:'A different explanation — algebra'}).click();
+   await page.getByRole('button',{name:'A different explanation'}).click();
    const firstContainer=page.locator(`[data-output-id="${result.outputId}"]`);
    const secondContainer=page.locator(`[data-output-id="${secondResult.outputId}"]`);
    const reopened=firstContainer.locator('.feedback');
@@ -154,19 +208,18 @@ try {
    const unloadIsGuarded=()=>page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;});
    assert.equal(await unloadIsGuarded(),true);
    const readsBeforeRefresh=[...outputReads.entries()];
-   await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.getByRole('button',{name:'Refresh saved work'}).click();
    await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
-   await page.getByRole('button',{name:'Your explanation — algebra'}).click();
-   await page.getByRole('button',{name:'A different explanation — algebra'}).click();
+   await page.getByRole('button',{name:'Your explanation'}).click();
+   await page.getByRole('button',{name:'A different explanation'}).click();
    assert.deepEqual([...outputReads.entries()],readsBeforeRefresh,'opening an existing draft must not refetch a stale snapshot');
    assert.equal(await firstContainer.count(),1);assert.equal(await secondContainer.count(),1);
-   failList=true;await page.getByRole('button',{name:'Open saved work'}).click();
+   failList=true;await page.getByRole('button',{name:'Refresh saved work'}).click();
    await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
    failList=false;
    await page.getByRole('button',{name:'Clear session'}).click();
    await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
    await page.locator('#expression').fill('a new problem');
-   await page.locator('.learning-options summary').click();
    await page.locator('#learning-context').fill('a different context');
    assert.equal(await reopened.getByLabel('What should we explain differently?').inputValue(),'Keep my first unsaved note');
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'y=3x+5');
@@ -184,8 +237,8 @@ try {
    await reopened.getByRole('status').filter({hasText:'Submitted for review'}).waitFor();
    assert.equal(submitted,true);assert.equal(version,3);
    assert.equal(await reopened.getByLabel('Show your work or describe your approach').isDisabled(),true);
-   await page.getByRole('button',{name:'Open saved work'}).click();
-   await page.getByRole('button',{name:'Your explanation — algebra',exact:true}).click();
+   await page.getByRole('button',{name:'Refresh saved work'}).click();
+   await page.getByRole('button',{name:'Your explanation',exact:true}).click();
    assert.equal(await firstContainer.evaluate(element=>element.contains(document.activeElement)),true,'submitted work receives focus inside its own editor');
    assert.equal(await firstContainer.getAttribute('aria-labelledby'),'saved-output-title-'+result.outputId);
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').isDisabled(),false);
