@@ -77,7 +77,7 @@ try {for(const engine of [chromium,webkit]){
     feedback={...feedback,graph:{...feedback.graph,expression:'  Y = 2*x+12 '}};
     let releaseStartup;const startupGate=new Promise(resolve=>{releaseStartup=resolve;});
     await page.route('**/numos-math-assets.json?*',async route=>{await startupGate;await route.continue();});
-    await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line — algebra',exact:true}).click();
+    await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line',exact:true}).click();
     await panel.getByRole('status').filter({hasText:'Drawing graph…'}).waitFor();
     releaseStartup();
     await panel.locator('.annotation-graph').waitFor({state:'visible'});
@@ -104,7 +104,7 @@ try {for(const engine of [chromium,webkit]){
     await panel.getByRole('button',{name:'Save draft',exact:true}).click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.feedback [role=status]')].some(n=>n.textContent==='Draft saved.'));
     assert.equal(version,beforeClear+1);assert.equal(feedback.graph,undefined);assert.equal(feedback.annotations.length,1);
-    await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line — algebra',exact:true}).click();
+    await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line',exact:true}).click();
     await panel.waitFor();assert.equal(await panel.locator('.annotation-graph').isVisible(),false);assert.equal(await panel.locator('.graph-pin').count(),0);
     await panel.getByRole('button',{name:'Submit for review',exact:true}).click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.feedback [role=status]')].some(n=>n.textContent==='Submitted for review.'));
