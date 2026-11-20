@@ -27,7 +27,7 @@
 #
 # As with every emulator screen the only volatile region is the StatusBar clock
 # (HH:MM). This phase makes NO golden claim; the screenshot is a CANDIDATE for human
-# review only (a clock mask is added by the human at promotion time, rect 4,6,37,13).
+# review only (a clock mask is added by the human at promotion time, rect 215,6,37,13).
 #
 # Timing notes (deterministic, step-ms 16):
 #   * 200 frames -> splash done, in launcher.

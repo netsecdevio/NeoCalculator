@@ -1,5 +1,7 @@
 # NumOS — Emulator Determinism & Fixture Hygiene Specification
 
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
+
 > **What "done" means:** a `.numos` run's observable output (pixels, assert results, exit code, files written) is a pure function of *(binary, script, CLI flags)* — never of the host's wall clock, a previous run's leftovers, the host keyboard layout, or the checkout's dirty state — and every file a test run creates has a declared home and lifecycle. Companion docs: `NUMOS_EMULATOR_PERSISTENCE_SANDBOX_SPEC.md` (SANDBOX), `NUMOS_EMULATOR_CI_ARTIFACT_AND_GOLDEN_POLICY_SPEC.md` (CIART), `NUMOS_EMULATOR_HOST_PORTABILITY_SPEC.md` (PORT), `NUMOS_EMULATOR_DETERMINISM_IMPLEMENTATION_ROADMAP.md` (EMUROAD). This spec refines — and never contradicts — `NUMOS_STATUSBAR_TRUTHFULNESS_AND_SYSTEM_CHROME_SPEC.md` (SBAR, esp. SB-03), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE, esp. §F/GS-03), and `NUMOS_SYSTEM_CHROME_QA_ORACLE_AND_GOLDEN_PLAN.md` (SCQA, esp. QA-05).
 >
 > Audit base: branch `claude/numos-emulator-determinism-specs-69nso8` (2026-07-04), working tree clean at audit start. Notation: **[V]** verified with `file:line` evidence · **[P]** proposed (desired behavior; does not exist yet). SPEC-ONLY: no code changed.
@@ -48,7 +50,7 @@ The flag changes exactly two things: the tick source (`:1998`) and the sleep pol
 
 `StatusBar::updateClock()` reads `time(nullptr)` → `localtime` → `"%02d:%02d"` (`StatusBar.cpp:205-225`). This is the host wall clock on both targets; the deterministic tick does not cover it. Refresh is event-driven, not periodic: CalculationApp calls `_statusBar.update()` on load and on key handling (`CalculationApp.cpp:133,259-302,513`); SettingsApp only on `load()` (`SettingsApp.cpp:110`) — so the pixels freeze at whatever wall minute the last update ran (SBAR §B.3 owns the truthfulness aspect). The launcher's bar is a *different*, static implementation — literal `"rad"`, `"APPLICATIONS"`, full-battery glyph, **no clock** (`MainMenu.cpp:321-356`) — which is why `launcher_smoke` is byte-stable with no mask (`tests/emulator/masks/README.md:24-26`).
 
-Consequence [V]: within one run, two frames in the same wall minute render identical clocks; across runs launched in different minutes the clock rect differs. All 18 masks exist solely for this (`tests/emulator/masks/README.md:36-39`, every mask file is the single rect `4,6,37,13`, e.g. `tests/emulator/masks/settings_smoke.mask`).
+Consequence [V]: within one run, two frames in the same wall minute render identical clocks; across runs launched in different minutes the clock rect differs. All 18 masks exist solely for this (`tests/emulator/masks/README.md:36-39`, every mask file is the single rect `215,6,37,13`, e.g. `tests/emulator/masks/settings_smoke.mask`).
 
 ### B.6 App timers and async timers
 
@@ -98,7 +100,7 @@ Splash fade (~2 s, `NativeHal.cpp:2026-2030`), launcher fade-in 200 ms (`showcas
 
 ### C.3 Deterministic only by masking [V]
 
-Exactly one class: the StatusBar `HH:MM` rect `4,6,37,13`, in all 18 masks (`tests/emulator/masks/README.md:36-44`). Everything else in every golden is byte-gated. This is honest, documented masking — but it institutionalizes the clock lie (SBAR §D row 12) and it means "golden passes" currently proves "deterministic except where we agreed not to look."
+Exactly one class: the StatusBar `HH:MM` rect `215,6,37,13`, in all 18 masks (`tests/emulator/masks/README.md:36-44`). Everything else in every golden is byte-gated. This is honest, documented masking — but it institutionalizes the clock lie (SBAR §D row 12) and it means "golden passes" currently proves "deterministic except where we agreed not to look."
 
 ### C.4 Host-dependent [V]
 
@@ -193,7 +195,7 @@ For two-process tests (Settings GS-02, vars today): two or more invocations *sha
 
 Each maps to a ticket in EMUROAD; "runner-level" = shell/python steps in CI, not `.numos` grammar.
 
-1. **AT-DET-1 (clock virtualization, EMUDET-01).** Runner: generate `settings_smoke` candidate twice with the host `TZ` forced to two different values and with `faketime`-style start minutes differing (or simply: two runs straddling a real minute rollover — run, `sleep 61`, run). Compare with `compare-ppm.py` **without** the mask → exit 0. Today this fails inside rect `4,6,37,13`.
+1. **AT-DET-1 (clock virtualization, EMUDET-01).** Runner: generate `settings_smoke` candidate twice with the host `TZ` forced to two different values and with `faketime`-style start minutes differing (or simply: two runs straddling a real minute rollover — run, `sleep 61`, run). Compare with `compare-ppm.py` **without** the mask → exit 0. Today this fails inside rect `215,6,37,13`.
 2. **AT-DET-2 (self-diff without masks).** Runner: for every stem in the candidate list, run twice, byte-compare unmasked → identical. Generalizes `emulator-build.yml:228-237` from one fixture to all (CI phase T-selfdiff, CIART §J.2).
 3. **AT-DET-3 (`--run-for-ms` rejection, EMUDET-02).** `program --deterministic --run-for-ms 100` exits 2 with a message naming both flags; `--deterministic --frames 100` still exits 0.
 4. **AT-DET-4 (live-input isolation, EMUDET-04).** Windowed scripted run with synthetic SDL key injection (SDL_PushEvent harness or manual QA row): final screenshot equals the headless run's byte-for-byte.

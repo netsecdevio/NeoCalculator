@@ -45,7 +45,10 @@ try {
   const browser=await engine.launch();
   try{
    await checkParentBoundary(browser);
-   const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,problem;
+   const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,failList=false,problem;
+   const outputReads=new Map();
+   let releaseFirstRead,firstReadStartedResolve,holdFirstRead=true;
+   const firstReadStarted=new Promise(resolve=>{firstReadStartedResolve=resolve;});
    const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed-revision',classId:'algebra',title:'Your explanation',steps:[{explanation:'Find the slope',math:'m=2',citationIds:[]}],sources:[],answer:'y=2x+12',limitations:[],model:'test/provider'};
    const secondResult={...result,outputId:'12345678-1234-1234-1234-123456789def',revision:'second-revision',title:'A different explanation',steps:[{explanation:'Use the intercept',math:'b=5',citationIds:[]}],answer:'y=3x+5'};
    let secondSaved={work:'b=5'},secondVersion=0;
@@ -64,9 +67,14 @@ try {
      }else{
       assert.equal(body.revision,result.revision);assert.equal(body.version,version);saved=body.feedback;submitted=body.submit;data={version:++version,submitted};
      }
-    }else if(path.endsWith('/outputs'))data={outputs:[result,secondResult]};
-    else if(path.endsWith(secondResult.outputId))data={...secondResult,output:secondResult,feedback:secondSaved,version:secondVersion,submitted:false};
-    else data={...result,output:result,feedback:saved,version,submitted};
+    }else if(path.endsWith('/outputs')){
+     if(failList){await route.fulfill({status:503,json:{}});return;}
+     data={outputs:[result,secondResult]};
+    }else {
+     outputReads.set(path,(outputReads.get(path)||0)+1);
+     if(path.endsWith(result.outputId)&&holdFirstRead){holdFirstRead=false;firstReadStartedResolve();await new Promise(resolve=>{releaseFirstRead=resolve;});}
+     data=path.endsWith(secondResult.outputId)?{...secondResult,output:secondResult,feedback:secondSaved,version:secondVersion,submitted:false}:{...result,output:result,feedback:saved,version,submitted};
+    }
     await route.fulfill({json:data});
    });
    await page.goto(server.origin);
@@ -87,6 +95,11 @@ try {
    await panel.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
    await page.reload();await page.getByRole('button',{name:'Open saved work'}).click();
    await page.getByRole('button',{name:'Your explanation — algebra'}).click();
+   await firstReadStarted;
+   await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
+   await page.getByRole('button',{name:'Your explanation — algebra'}).click();
+   releaseFirstRead();
    await page.getByRole('button',{name:'A different explanation — algebra'}).click();
    const firstContainer=page.locator(`[data-output-id="${result.outputId}"]`);
    const secondContainer=page.locator(`[data-output-id="${secondResult.outputId}"]`);
@@ -95,19 +108,50 @@ try {
    assert.equal(await firstContainer.locator('h2').first().textContent(),result.title);
    assert.equal(await secondContainer.locator('h2').first().textContent(),secondResult.title);
    assert.equal(await reopened.count(),1);assert.equal(await secondReopened.count(),1);
+   assert.equal(outputReads.get('/api/brainfood/math/outputs/'+result.outputId),1,'list refresh during a pending open must not create a second request/editor');
    assert.equal(await reopened.getByLabel('Step 1 — what helped or confused you?').inputValue(),'Why subtract?');
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'b=5');
+   await reopened.getByLabel('What should we explain differently?').fill('Keep my first unsaved note');
    await secondReopened.getByLabel('Show your work or describe your approach').fill('y=3x+5');
+   const unloadIsGuarded=()=>page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;});
+   assert.equal(await unloadIsGuarded(),true);
+   const readsBeforeRefresh=[...outputReads.entries()];
+   await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
+   await page.getByRole('button',{name:'Your explanation — algebra'}).click();
+   await page.getByRole('button',{name:'A different explanation — algebra'}).click();
+   assert.deepEqual([...outputReads.entries()],readsBeforeRefresh,'opening an existing draft must not refetch a stale snapshot');
+   assert.equal(await firstContainer.count(),1);assert.equal(await secondContainer.count(),1);
+   failList=true;await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.waitForFunction(()=>!document.getElementById('saved-work-index').hasAttribute('aria-busy'));
+   failList=false;
+   await page.getByRole('button',{name:'Clear session'}).click();
+   await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
+   await page.locator('#expression').fill('a new problem');
+   await page.locator('.learning-options summary').click();
+   await page.locator('#learning-context').fill('a different context');
+   assert.equal(await reopened.getByLabel('What should we explain differently?').inputValue(),'Keep my first unsaved note');
+   assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'y=3x+5');
+   assert.equal(await unloadIsGuarded(),true,'resetting calculator inputs must retain the draft unload guard');
    await secondReopened.getByRole('button',{name:'Save draft'}).click();
    await secondReopened.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
    assert.equal(secondSaved.work,'y=3x+5');assert.equal(secondVersion,1);
    assert.equal(saved.work,'m=-8/-4');assert.equal(version,1);
+   assert.equal(await unloadIsGuarded(),true,'saving one output must not clear another output dirty state');
+   await reopened.getByRole('button',{name:'Save draft'}).click();
+   await reopened.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
+   assert.equal(saved.comment,'Keep my first unsaved note');assert.equal(version,2);
+   assert.equal(await unloadIsGuarded(),false,'all saved drafts should allow navigation without a warning');
    await reopened.getByRole('button',{name:'Submit for review'}).click();
    await reopened.getByRole('status').filter({hasText:'Submitted for review'}).waitFor();
-   assert.equal(submitted,true);assert.equal(version,2);
+   assert.equal(submitted,true);assert.equal(version,3);
    assert.equal(await reopened.getByLabel('Show your work or describe your approach').isDisabled(),true);
+   await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.getByRole('button',{name:'Your explanation — algebra',exact:true}).click();
+   assert.equal(await firstContainer.evaluate(element=>document.activeElement===element),true,'submitted work receives focus even when every field is disabled');
+   assert.equal(await firstContainer.getAttribute('aria-labelledby'),'saved-output-title-'+result.outputId);
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').isDisabled(),false);
-   console.log(engine.name()+': API routing, failed-save preservation, separate saved-output editors, draft reopening and submission passed');
+   console.log(engine.name()+': API routing, failed-save preservation, refresh/reset draft preservation, editor deduplication, unload guards and submission passed');
   }finally{await browser.close();}
  }
 }finally{await server.close();}
