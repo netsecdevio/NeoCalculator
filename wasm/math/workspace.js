@@ -146,9 +146,20 @@ const classLabel=document.createElement('label');classLabel.htmlFor='learning-cl
 input.before(classLabel,classSelect);
 loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
 const dirtyPanels=new Set();
+// Open editors are independent of the refreshable saved-work index. One editor
+// owns each output's draft/version for the lifetime of this page.
+const openedEditors=new Map(),pendingReopens=new Set();
+const workEditors=document.createElement('div');workEditors.id='opened-work';
+explanation.after(workEditors);
+function focusEditor(editor){editor.scrollIntoView({block:'nearest'});editor.querySelector('textarea:not(:disabled),button:not(:disabled)')?.focus({preventScroll:true});}
 window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
 function mountFeedback(result,saved=null,container=null){
   if(!result.outputId||!result.revision)return;
+  if(openedEditors.has(result.outputId)){focusEditor(openedEditors.get(result.outputId));return;}
+  if(!container){
+    container=document.createElement('section');container.dataset.outputId=result.outputId;
+    const title=document.createElement('h2');title.textContent=result.title;container.append(title);
+  }
   const panel=document.createElement('section');panel.className='feedback';
   const heading=document.createElement('h2');heading.textContent='Your notes and work';
   const description=document.createElement('p');description.textContent='Class: '+result.classId+'. Notes stay attached to this explanation.';
@@ -181,30 +192,42 @@ function mountFeedback(result,saved=null,container=null){
   draft.onclick=()=>send(false);submit.onclick=()=>send(true);panel.append(draft,submit,message);
   // Keep prior work visible even when another explanation is requested.
   if(saved?.submitted){fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
-  if(container)container.append(panel);else explanation.after(panel);
+  container.append(panel);workEditors.append(container);openedEditors.set(result.outputId,container);
 }
 
 const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Open saved work';
-const savedList=document.createElement('div');savedList.setAttribute('aria-live','polite');
+const savedList=document.createElement('div');savedList.id='saved-work-index';savedList.setAttribute('aria-live','polite');
 classSelect.after(reopen,savedList);
+let savedListVersion=0;
 reopen.onclick=async()=>{
-  savedList.replaceChildren();
+  const request=++savedListVersion;reopen.disabled=true;savedList.setAttribute('aria-busy','true');
   try{
     const {outputs}=await loadOutputs();
-    if(!outputs.length)savedList.textContent='No saved explanations yet.';
+    if(request!==savedListVersion)return;
+    const index=document.createDocumentFragment();
+    if(!outputs.length)index.append(document.createTextNode('No saved explanations yet.'));
     for(const item of outputs){
       const button=document.createElement('button');button.type='button';button.textContent=item.title+' — '+item.classId;
       button.onclick=async()=>{
+        if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
+        if(pendingReopens.has(item.outputId))return;
+        pendingReopens.add(item.outputId);button.disabled=true;
         try{
           const saved=await loadOutput(item.outputId);
+          // A generated explanation or another view may have opened this output
+          // while its saved snapshot was loading. Never replace its current draft.
+          if(openedEditors.has(item.outputId)){focusEditor(openedEditors.get(item.outputId));return;}
           const panel=document.createElement('section');panel.dataset.outputId=item.outputId;
           const h=document.createElement('h2');h.textContent=saved.output.title;
           panel.append(h);
           for(const step of saved.output.steps){const text=document.createElement('p');text.textContent=step.explanation+' '+(step.math||'');panel.append(text);}
-          savedList.append(panel);mountFeedback({...saved.output,...item},saved,panel);button.disabled=true;
+          mountFeedback({...saved.output,...item},saved,panel);
         }catch(error){status.textContent=error.message;}
+        finally{pendingReopens.delete(item.outputId);button.disabled=false;}
       };
-      savedList.append(button);
+      index.append(button);
     }
-  }catch(error){savedList.textContent=error.message;}
+    savedList.replaceChildren(index);
+  }catch(error){if(request===savedListVersion)savedList.textContent=error.message;}
+  finally{if(request===savedListVersion){reopen.disabled=false;savedList.removeAttribute('aria-busy');}}
 };
