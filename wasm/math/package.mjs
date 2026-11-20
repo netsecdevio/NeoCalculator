@@ -96,3 +96,7 @@ for (const entry of Object.values(assets)) {
     throw new Error(`invalid ${entry.logicalName}`);
 }
 console.log(JSON.stringify(report, null, 2));
+
+for (const name of ["index.html", "workspace.js", "workspace.css"]) {
+  await writeFile(join(distDir, name), await readFile(join(sourceDir, name)));
+}

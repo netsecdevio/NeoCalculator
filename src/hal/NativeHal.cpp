@@ -3099,9 +3099,10 @@ static void scriptStepBegin()
         }
         case ScriptCmdType::AssertNoError: {
             if (g_mode == AppMode::CALCULATION && g_calcApp && g_calcApp->debugHasResult() &&
-                !g_calcApp->debugLastResult().ok) {
-                assertFail(sc.line, "assert_no_error: el resultado tiene error '" +
-                                    g_calcApp->debugLastResult().error + "'");
+                std::string(g_calcApp->debugCalcStatus()) != "ok") {
+                // Structured results do not fit the legacy numeric mirror.
+                assertFail(sc.line, "assert_no_error: engine status '" +
+                                    std::string(g_calcApp->debugCalcStatus()) + "'");
             } else {
                 assertPass(sc.line, "assert_no_error");
             }

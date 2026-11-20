@@ -13,6 +13,6 @@
     "math": "node math.mjs"
   },
   "devDependencies": {
-    "playwright": "1.54.1"
+    "playwright": "1.65.0"
   }
 }

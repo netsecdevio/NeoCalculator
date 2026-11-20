@@ -1,5 +1,7 @@
 # NumOS — Core Apps QA Oracle & Stress Plan
 
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
+
 > How Calculation and Grapher get tested deeply: inventory, gaps, hooks, goldens, stress, loops,
 > human QA, CI gating, artifacts — plus the break-it corpus (50 Calculation + 75 Grapher cases).
 > Companion to the two product specs (corpora CC-01…CC-112, GC-01…GC-153) and to
@@ -33,7 +35,7 @@
 ### A.2 Fixtures
 
 71 scripts / 19 goldens (+README) / 18 masks (all masks = the single StatusBar-clock rect
-`4,6,37,13`; `launcher_smoke` is the only maskless golden). Per-app: Calculation 19 scripts
+`215,6,37,13`; `launcher_smoke` is the only maskless golden). Per-app: Calculation 19 scripts
 (2 goldens), Grapher 36+1 scripts (6 goldens), Stats/Prob/Seq/Reg 2 each (2 goldens each),
 Settings 1 (1), MathShowcase 2 (1), launcher/menu 4 (1), input parity 1. Host tests: exactly one —
 `tests/host/keycode_digit_test.cpp` (keycode digit helper).

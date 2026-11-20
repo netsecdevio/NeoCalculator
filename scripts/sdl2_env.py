@@ -182,3 +182,8 @@ else:
         env.Append(LINKFLAGS=["-Wl,-dead_strip"])
     else:
         env.Append(LINKFLAGS=["-Wl,--gc-sections"])
+
+# Giac must compile against the exact vendored LibTomMath ABI. Homebrew's SDL
+# flags can add /opt/homebrew/include, which also contains an unrelated
+# tommath.h on some Macs. Put the project header ahead of system includes.
+env.Prepend(CPPPATH=[os.path.join(env.subst("$PROJECT_DIR"), "lib", "libtommath")])

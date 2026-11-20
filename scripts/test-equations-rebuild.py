@@ -35,9 +35,12 @@ MATH={
  'incomplete-fraction':('1 / RIGHT = 1','parse_error',[]),
  'incomplete-root':('sqrt RIGHT = 1','parse_error',[]),
  'incomplete-power':('x ^ RIGHT = 1','parse_error',[]),
+ 'unselected-y':('y = 0','parse_error',[]),
+ 'unselected-z':('ALPHA y = 0','parse_error',[]),
  'unsupported-variable':('ALPHA sin = 0','parse_error',[]),
 }
 SYSTEMS={
+ 'unselected-z-2x2':(['x = 1','ALPHA y = 0'],'parse_error',[]),
  'system-2x2':(['x + y = 3','x - y = 1'],'ok',[('x',0,'2'),('y',0,'1')]),
  'system-3x3':(['x + y + ALPHA y = 6','x - y + ALPHA y = 2','x + y - ALPHA y = 0'],'ok',[('x',0,'1'),('y',0,'2'),('z',0,'3')]),
  'inconsistent':(['x + y = 2','2 * x + 2 * y = 5'],'no_solution',[]),

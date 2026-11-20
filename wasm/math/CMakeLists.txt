@@ -60,6 +60,7 @@ target_compile_definitions(numos_math_wasm PRIVATE
     NATIVE_SIM HAVE_CONFIG_H DOUBLEVAL GIAC_KHICAS NO_GUI GIAC_GENERIC
     EMBEDDED UMAP NO_BSD _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS)
 target_compile_options(numos_math_wasm PRIVATE
+    -sUSE_SDL=2
     -fexceptions -fwasm-exceptions -include unistd.h -UEMCC
     -Wno-register -Wno-c++11-narrowing -ffunction-sections -fdata-sections)
 target_link_libraries(numos_math_wasm PRIVATE

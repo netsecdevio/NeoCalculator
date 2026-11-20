@@ -183,6 +183,11 @@ async function run(browserName, browserType) {
     // Low-level direct harness remains available for integration testing.
     const direct = await createNumosMathDirect({ manifestUrl });
     const directResult = await direct.evaluate("2+2");
+    const directGraph = await direct.compile1D("x", "x");
+    const directArrayLike = await directGraph.evaluateMany({0: 7, length: 1});
+    let directOversize;
+    try { await directGraph.evaluateMany({length: 4097}); } catch(error) { directOversize = error.code; }
+    await directGraph.dispose();
     const directSurface = await direct.compile2D("(x^2+y^2)-(1)", "x", "y");
     const directCircle = await directSurface.evaluate(0.5, 0.5);
     const directShutdown = await direct.shutdown();
@@ -208,7 +213,7 @@ async function run(browserName, browserType) {
       isolatedA, removed, scalar, batchLength: batch.length, gap, trigDegree,
       staleCode,
       disposedCode, circle, grid, bounds, beforeCancel, cancelled, afterCancel,
-      shutdownCode, directResult, directCircle, directShutdown, cycles,
+      shutdownCode, directResult, directArrayLike, directOversize, directCircle, directShutdown, cycles,
       initialDiagnostics, oversizedMatrix, oversizedList, expandedResult,
     };
   }, { browserName });
@@ -301,6 +306,8 @@ async function run(browserName, browserType) {
   assert.equal(result.afterCancel.result.value, "4");
   assert.equal(result.shutdownCode, "SHUTDOWN");
   assert.equal(result.directResult.result.value, "4");
+  assert.equal(result.directArrayLike[0].value, 7);
+  assert.equal(result.directOversize, "INVALID_REQUEST");
   assert.equal(result.directShutdown.activeContexts, 0);
   assert.equal(result.cycles.length, 5);
   assert.ok(result.cycles.every((cycle) =>

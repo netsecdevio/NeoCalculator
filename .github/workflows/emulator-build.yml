@@ -16,6 +16,8 @@ on:
     branches: [ main ]
     paths:
       - 'src/**'
+      - 'lib/giac/**'
+      - 'lib/libtommath/**'
       - 'tests/emulator/**'
       - 'tests/host/**'
       - 'platformio.ini'
@@ -35,6 +37,8 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'lib/giac/**'
+      - 'lib/libtommath/**'
       - 'tests/emulator/**'
       - 'tests/host/**'
       - 'platformio.ini'
@@ -185,6 +189,8 @@ jobs:
 
       - name: Calculation editor allocation and placeholder checks
         run: |
+          cp compile_commands.json "$RUNNER_TEMP/neo-original-compile-commands.json"
+          trap 'cp "$RUNNER_TEMP/neo-original-compile-commands.json" compile_commands.json' EXIT
           pio run -e emulator_pc -t compiledb
           python scripts/test-tutor-composition-host.py --source . --build .pio/build/emulator_pc --out out/calc-core-input-01/editor-ci --tests calculation_input_checks
 
@@ -824,7 +830,7 @@ jobs:
       #   * compares each candidate to its accepted golden under
       #     tests/emulator/golden/ IFF that golden exists. (Phase 4B-B) If a
       #     matching ignore-rect mask exists under tests/emulator/masks/, the
-      #     compare ignores those volatile regions (the blinking cursor); with no
+      #     compare ignores those volatile regions (the live HH:MM clock); with no
       #     mask the compare is byte-exact, exactly as before.
       # A missing golden is a WARNING, not a failure — so an unreviewed image can
       # never silently become a passing gate. A present golden that mismatches

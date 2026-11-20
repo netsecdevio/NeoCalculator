@@ -63,8 +63,8 @@ export async function createNumosMathDirect({
     evaluate: async (x) =>
       invoke("numos_math_evaluate_1d", ["string", "number"], [id, x]).value,
     evaluateMany: async (values) => {
-      if (!Array.isArray(values) && !ArrayBuffer.isView(values)) {
-        throw invalidRequest("values must be an array or typed array");
+      if (values == null || !Number.isInteger(values.length) || values.length < 0 || values.length > 4096) {
+        throw invalidRequest("at most 4096 graph samples are allowed");
       }
       const copy = Float64Array.from(values);
       const pointer = module._malloc(copy.byteLength || 8);
