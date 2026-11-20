@@ -1,0 +1,48 @@
+/* Shared Silas learning tokens. Surfaces stay quiet; blue identifies actions. */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./branding/JetBrainsMono-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  --silas-bg: #10151f;
+  --silas-surface: #192231;
+  --silas-field: #111925;
+  --silas-text: #edf2fa;
+  --silas-muted: #a8b8cc;
+  --silas-border: #627995;
+  --silas-accent: #82b4ff;
+  --silas-action: #2765c5;
+  --silas-action-text: #ffffff;
+  --silas-focus: #ffce75;
+  --silas-soft: #26364e;
+  --silas-graph-bg: #0c1420;
+  --silas-graph-grid: #26364b;
+  --silas-graph-axes: #8da3bd;
+  --silas-graph-line: #82b4ff;
+  --silas-radius: 12px;
+  --silas-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --silas-math-font: "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+/* Light tokens are opt-in for embedding hosts; system appearance never
+   overrides the default dark workspace. */
+:root[data-theme="light"] {
+    color-scheme: light;
+    --silas-bg: #f3f6fb;
+    --silas-surface: #ffffff;
+    --silas-field: #f8faff;
+    --silas-text: #182638;
+    --silas-muted: #52657d;
+    --silas-border: #a9b9cd;
+    --silas-accent: #1856ad;
+    --silas-action: #245fbd;
+    --silas-focus: #895200;
+    --silas-soft: #e7eef8;
+    --silas-graph-bg: #ffffff;
+    --silas-graph-grid: #d5dfeb;
+    --silas-graph-axes: #526984;
+    --silas-graph-line: #245fbd;
+}
