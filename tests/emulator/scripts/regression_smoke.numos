@@ -14,7 +14,7 @@
 # (RegressionApp.cpp:707-735) and no timer-driven cursor blink, so as with every emulator
 # screen the only volatile region across runs is the StatusBar clock (HH:MM). This phase
 # makes NO golden claim; the screenshot is a CANDIDATE for human review only (a clock mask
-# is added by the human at promotion time, rect 4,6,37,13).
+# is added by the human at promotion time, rect 215,6,37,13).
 #
 # Timing notes (deterministic, step-ms 16):
 #   * 200 frames -> splash (~frame 125) is done; we are in the launcher.

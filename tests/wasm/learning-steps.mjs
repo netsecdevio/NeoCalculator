@@ -128,6 +128,7 @@ try {
    await page.getByRole('button',{name:'Clear session'}).click();
    await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
    await page.locator('#expression').fill('a new problem');
+   await page.locator('.learning-options summary').click();
    await page.locator('#learning-context').fill('a different context');
    assert.equal(await reopened.getByLabel('What should we explain differently?').inputValue(),'Keep my first unsaved note');
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').inputValue(),'y=3x+5');
@@ -145,6 +146,10 @@ try {
    await reopened.getByRole('status').filter({hasText:'Submitted for review'}).waitFor();
    assert.equal(submitted,true);assert.equal(version,3);
    assert.equal(await reopened.getByLabel('Show your work or describe your approach').isDisabled(),true);
+   await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.getByRole('button',{name:'Your explanation — algebra',exact:true}).click();
+   assert.equal(await firstContainer.evaluate(element=>document.activeElement===element),true,'submitted work receives focus even when every field is disabled');
+   assert.equal(await firstContainer.getAttribute('aria-labelledby'),'saved-output-title-'+result.outputId);
    assert.equal(await secondReopened.getByLabel('Show your work or describe your approach').isDisabled(),false);
    console.log(engine.name()+': API routing, failed-save preservation, refresh/reset draft preservation, editor deduplication, unload guards and submission passed');
   }finally{await browser.close();}
