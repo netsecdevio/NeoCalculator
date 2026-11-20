@@ -167,7 +167,7 @@ function mountFeedback(result,saved=null){
   }
   let version=saved?.version||0,editing=0;panel.addEventListener('input',()=>{dirtyPanels.add(panel);editing++;});
   const message=document.createElement('p');message.setAttribute('role','status');
-  const draft=document.createElement('button'),submit=document.createElement('button');draft.textContent='Save draft';submit.textContent='Submit for review';
+  const draft=document.createElement('button'),submit=document.createElement('button');draft.type=submit.type='button';draft.textContent='Save draft';submit.textContent='Submit for review';
   async function send(submitted){
     draft.disabled=submit.disabled=true;fields.forEach(f=>f.disabled=true);const snapshot=editing;
     try{
@@ -184,7 +184,7 @@ function mountFeedback(result,saved=null){
   explanation.after(panel);
 }
 
-const reopen=document.createElement('button');reopen.textContent='Open saved work';
+const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Open saved work';
 const savedList=document.createElement('div');savedList.setAttribute('aria-live','polite');
 classSelect.after(reopen,savedList);
 reopen.onclick=async()=>{
@@ -193,7 +193,7 @@ reopen.onclick=async()=>{
     const {outputs}=await loadOutputs();
     if(!outputs.length)savedList.textContent='No saved explanations yet.';
     for(const item of outputs){
-      const button=document.createElement('button');button.textContent=item.title+' — '+item.classId;
+      const button=document.createElement('button');button.type='button';button.textContent=item.title+' — '+item.classId;
       button.onclick=async()=>{
         try{
           const saved=await loadOutput(item.outputId);
