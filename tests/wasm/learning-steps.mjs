@@ -59,7 +59,7 @@ async function checkClassRetry(browser) {
  });
  await page.goto(server.origin+'/#'+new URLSearchParams({context:'Teacher directions',problem:'Find the slope'}));
  await page.getByRole('button',{name:'Retry classes',exact:true}).waitFor();
- assert.match(await page.locator('#class-context').innerText(),/Could not load your classes.*connection.*retry/);
+ assert.equal(await page.locator('#class-context').innerText(),'Could not load your classes. Check your Silas connection or sign in/pair this device, then retry.');
  assert.equal(await page.locator('#learning-class').isDisabled(),true);
  // An unavailable class catalog must not require reloading or discard an editor.
  await page.getByRole('button',{name:'Open saved work',exact:true}).click();

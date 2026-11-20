@@ -166,8 +166,8 @@ async function refreshClasses(){
     updateClassContext();
     retryClasses.hidden=true;
     if(!data.classes.length)classContext.textContent='No class is linked to this account yet. Ask your parent or teacher to link one.';
-  }catch(error){
-    classContext.textContent='Could not load your classes. Check your Silas connection, then retry. '+error.message;
+  }catch{
+    classContext.textContent='Could not load your classes. Check your Silas connection or sign in/pair this device, then retry.';
     retryClasses.hidden=false;
   }finally{loadingClasses=false;retryClasses.disabled=false;classSelect.disabled=!classSelect.options.length;}
 }
