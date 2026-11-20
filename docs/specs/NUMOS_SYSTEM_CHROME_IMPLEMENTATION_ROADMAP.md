@@ -1,6 +1,6 @@
 # NumOS — System Chrome Implementation Roadmap
 
-> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
 
 > Ordered, fully-fielded tickets implementing `NUMOS_SETTINGS_APP_PRODUCT_SPEC.md` (SET), `NUMOS_STATUSBAR_TRUTHFULNESS_AND_SYSTEM_CHROME_SPEC.md` (SBAR), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE), `NUMOS_SYSTEM_CHROME_QA_ORACLE_AND_GOLDEN_PLAN.md` (SCQA).
 >
@@ -138,7 +138,7 @@ Rationale: hooks first (QA-01) so GS-01 lands with its oracle in the same PR win
 - **Risk**: low logic / high golden-churn. **Owner**: Sonnet; blessing Human.
 
 ### SB-03 — Deterministic emulator clock policy
-- **Motivation**: clock reads wall time even under `--deterministic` (synthetic tick covers LVGL only), forcing the identical `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) mask in all 18 masks; firmware clock is a format-lie (boots 00:00-of-2026, key-press refresh only) (SBAR §C.3, §D.6-7, §E.3; PD-B2).
+- **Motivation**: clock reads wall time even under `--deterministic` (synthetic tick covers LVGL only), forcing the identical `215,6,37,13` mask in all 18 masks; firmware clock is a format-lie (boots 00:00-of-2026, key-press refresh only) (SBAR §C.3, §D.6-7, §E.3; PD-B2).
 - **Evidence**: `StatusBar.cpp:205-225,125-142`; `NativeHal.cpp:189-190,1998`; `tests/emulator/masks/*` single-rect uniformity; false comment `StatusBar.cpp:20-23`.
 - **Files**: `src/ui/StatusBar.cpp` (time-source seam: deterministic source when NATIVE_SIM+deterministic; uptime rendering on firmware per PD-B2; fix the comment), `src/hal/NativeHal.cpp` (expose det-tick to the seam).
 - **Desired behavior**: SBAR §E.3 (chrome pixels = f(frame index)); §C.3 firmware honesty; new goldens maskless; old masks valid until re-bless.
@@ -162,7 +162,7 @@ Rationale: hooks first (QA-01) so GS-01 lands with its oracle in the same PR win
 ### SB-05 — Rendering contract enforcement
 - **Motivation**: nothing bounds title width or declares the volatile region (SBAR §F).
 - **Evidence**: `StatusBar.cpp:68-79` (unbounded centered title next to `-80` mod label).
-- **Files**: `src/ui/StatusBar.cpp/.h` (120 px title max + `LV_LABEL_LONG_DOT`, x-budget constants, volatile-region constant `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`)).
+- **Files**: `src/ui/StatusBar.cpp/.h` (120 px title max + `LV_LABEL_LONG_DOT`, x-budget constants, volatile-region constant `215,6,37,13`).
 - **Desired behavior**: SBAR §F.1-F.4. **Non-goals**: responsive layouts (§F.5 records drop order only).
 - **Tests**: `assert_statusbar_title` truncation script (long synthetic title via debug setter); goldens unchanged for current names.
 - **Golden impact**: none (current titles fit). **Firmware impact**: none. **Rollback**: revert. **Risk**: low. **Owner**: Sonnet.

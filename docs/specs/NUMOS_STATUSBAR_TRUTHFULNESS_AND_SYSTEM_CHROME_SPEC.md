@@ -1,6 +1,6 @@
 # NumOS — StatusBar Truthfulness & System Chrome Specification
 
-> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
 
 > **What "done" means:** the StatusBar never lies. Every indicator it paints — clock, title, angle badge, modifier, battery — either reflects verified live state or visibly declares itself unavailable/simulated. The same rule extends to the two sibling chrome surfaces (the launcher's bar and the legacy TFT header). Companion docs: `NUMOS_SETTINGS_APP_PRODUCT_SPEC.md` (SET), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE), `NUMOS_SYSTEM_CHROME_QA_ORACLE_AND_GOLDEN_PLAN.md` (SCQA), `NUMOS_SYSTEM_CHROME_IMPLEMENTATION_ROADMAP.md` (SCROAD).
 >
@@ -13,7 +13,7 @@
 1. NumOS has **three independent status-bar implementations** (§B.1): `ui::StatusBar` (apps), `MainMenu::buildStatusBar()` (launcher, fully static), and `SystemApp::drawStatusBar()` (legacy TFT paths). They can — and today do — display contradictory "facts" simultaneously across screens.
 2. Current lies, ranked (§D): the battery icon always shows full/green with no ADC behind it (risk HW-4); the launcher bar hard-codes the literal `"rad"`; the legacy header hard-codes `"DEG"` off a frozen member while the app badge says `"RAD"`; the clock claims wall time but is refreshed only on key presses; the modifier indicator goes stale in apps that don't repaint it; the emulator presents all of the above as if it were a real device.
 3. The truthfulness contract (§C) is one sentence per indicator: **show live verified state, or show that you don't know.** Its enforcement is one architectural change (single StatusBar implementation + one update policy) plus per-indicator policies (battery: hide-until-real; clock: real or deterministic-declared; angle: read the single global; modifier: read the FSM and repaint on every consumed key; title: set by the active app on load, bounded).
-4. Emulator truthfulness (§E): interactive runs may show host wall-clock; deterministic/headless runs get a fixed synthetic clock so the 18 identical clock masks (`4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`)) become unnecessary for new goldens (SB-03).
+4. Emulator truthfulness (§E): interactive runs may show host wall-clock; deterministic/headless runs get a fixed synthetic clock so the 18 identical clock masks (`215,6,37,13`) become unnecessary for new goldens (SB-03).
 5. Rendering contract (§F): no tofu, no clipping, one fixed volatile region, a title length policy — so goldens gate chrome pixels instead of masking them away.
 
 ---
@@ -92,7 +92,7 @@ Each app sets its own literal at load (`SettingsApp.cpp:79,109`, etc.). No centr
 | 9 | Modifier lock survives app exit on firmware but not emulator | `SystemApp.cpp:860-883` (no reset) vs `NativeHal.cpp:1081` (reset) | divergence (C3.9/RT-14) |
 | 10 | Indicator doc drift `SL/AL` vs `S-LOCK/A-LOCK` | `KeyboardManager.h:141` vs `KeyboardManager.cpp:141-142` | doc (K-8) |
 | 11 | Emulator launcher shows 20 cards; 12 of them do nothing on ENTER (stdout-only refusal) | `MainMenu.cpp:88-113` compiled fully; `NativeHal.cpp:932-996` handles ids {0,1,4,5,6,7,10,100} | medium |
-| 12 | Goldens institutionalize the clock lie: all 18 masks are the same clock rect `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) — chrome is exempted from pixel-gating instead of made deterministic | `tests/emulator/masks/*` (18 files, single rect) | test-debt |
+| 12 | Goldens institutionalize the clock lie: all 18 masks are the same clock rect `215,6,37,13` — chrome is exempted from pixel-gating instead of made deterministic | `tests/emulator/masks/*` (18 files, single rect) | test-debt |
 | 13 | SettingsApp title/hint promise ("MODE Back") is the only key documented; SETUP/AC undocumented behaviors | `SettingsApp.cpp:179`; SET §F–§G | low |
 
 ---
@@ -120,9 +120,9 @@ Card id 20 exists (`NUMOS_MATH_VISUAL_VERIFY`, `MainMenu.cpp:110-112`) — launc
 ## F. StatusBar rendering contract [P]
 
 1. **No tofu.** All bar text renders in `lv_font_montserrat_12` (`StatusBar.cpp:63,70,77,84`), which covers ASCII + the used symbols; any new glyph (charging icon, ↑ uptime marker) must be verified present in the font or drawn as vector (the Phase 7I space-glyph incident, `SettingsApp.cpp:156-160`, is the precedent).
-2. **No clipping/overlap.** Fixed x-budget at 320 px: clock ≤44 px from x=6; title centered with **max width 120 px** and `LV_LABEL_LONG_DOT` ellipsis; modifier right block reserves 44 px ending at −80; angle 3-char block at −38; battery 22 px at −8. Today nothing enforces this (§B.4); SB-05 adds the constraints. Worst legal title today is "Math Visual" (11 chars ≈ 77 px in Montserrat-12) — inside budget; the policy is for future names.
+2. **No clipping/overlap.** Fixed x-budget at 320 px: clock in the right-side 37 px slot x[215..251]; title centered with **max width 120 px** and `LV_LABEL_LONG_DOT` ellipsis; modifier block starts at x=6; angle 3-char block at −38; battery 22 px at −8. Today nothing enforces this (§B.4); SB-05 adds the constraints. Worst legal title today is "Math Visual" (11 chars ≈ 77 px in Montserrat-12) — inside budget; the policy is for future names.
 3. **App-title length policy.** Canonical titles = launcher card names (`MainMenu.cpp:88-113`), all ≤12 chars; new apps must fit 120 px or define an explicit short title.
-4. **Fixed volatile region.** Exactly one rectangle may vary independent of user input: the time slot, fixed at `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) (the historical mask rect — kept as the *declared* volatile region so old masks remain valid and new deterministic goldens can drop them).
+4. **Fixed volatile region.** The current live-clock mask is `215,6,37,13`, matching the right-aligned HH:MM slot. The retired left-side rectangle is no longer valid. New deterministic goldens may drop the clock mask only after clock virtualization is implemented and verified.
 5. **Small-screen fallback.** 320×240 is the only target (`Config.h:47-49`); no responsive behavior is specified. If a future panel is narrower, drop order is: battery, clock, modifier — angle and title are last to go (angle is a correctness indicator, not decoration).
 
 ---
