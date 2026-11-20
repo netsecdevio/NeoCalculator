@@ -1,5 +1,7 @@
 # NumOS — Core Apps QA Oracle & Stress Plan
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > How Calculation and Grapher get tested deeply: inventory, gaps, hooks, goldens, stress, loops,
 > human QA, CI gating, artifacts — plus the break-it corpus (50 Calculation + 75 Grapher cases).
 > Companion to the two product specs (corpora CC-01…CC-112, GC-01…GC-153) and to

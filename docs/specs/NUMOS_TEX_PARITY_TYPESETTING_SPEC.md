@@ -1,5 +1,7 @@
 # NumOS — TeX-Parity Typesetting Specification
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > **Normative typesetting-parity spec** for the VPAM math renderer (program code **TXP**).
 > Defines, operationally, what "TeX-quality typesetting" means for NumOS on the ILI9341 320×240 /
 > ESP32-S3 N16R8 target, measures the current renderer against TeXbook Appendix G and the OpenType

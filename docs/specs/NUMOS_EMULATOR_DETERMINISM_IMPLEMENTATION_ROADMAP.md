@@ -1,5 +1,7 @@
 # NumOS — Emulator Determinism Implementation Roadmap
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > Ordered, self-contained tickets for the four spec packs: `NUMOS_EMULATOR_DETERMINISM_AND_FIXTURE_HYGIENE_SPEC.md` (EMUDET), `NUMOS_EMULATOR_PERSISTENCE_SANDBOX_SPEC.md` (SANDBOX), `NUMOS_EMULATOR_CI_ARTIFACT_AND_GOLDEN_POLICY_SPEC.md` (CIART), `NUMOS_EMULATOR_HOST_PORTABILITY_SPEC.md` (PORT). Cross-links: EMUDET-01 = SBAR SB-03 (emulator half); FIX-01/02 = GSTATE GS-03 / SCQA QA-05 groundwork; CI-04 = SCQA core-QA-05.
 >
 > Namespaces: **EMUDET-\*** determinism · **FIX-\*** persistence/fixture hygiene · **CI-\*** artifacts/golden policy · **PORT-\*** host portability. Owner tiers follow the risk-register convention (Human / Fable / Opus / Sonnet). The NativeHal CLI + script grammar is **append-only** (`NUMOS_FABLE_CONTEXT_HEADER.md:67`): every ticket below adds flags/commands, never renames or repurposes.

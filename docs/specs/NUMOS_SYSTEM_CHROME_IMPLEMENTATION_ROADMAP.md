@@ -1,5 +1,7 @@
 # NumOS — System Chrome Implementation Roadmap
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > Ordered, fully-fielded tickets implementing `NUMOS_SETTINGS_APP_PRODUCT_SPEC.md` (SET), `NUMOS_STATUSBAR_TRUTHFULNESS_AND_SYSTEM_CHROME_SPEC.md` (SBAR), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE), `NUMOS_SYSTEM_CHROME_QA_ORACLE_AND_GOLDEN_PLAN.md` (SCQA).
 >
 > Audit base: `5fc5ea3` (2026-07-04). Owner tiers: **Sonnet** = mechanical/bounded · **Opus** = multi-file feature with regression risk · **Fable** = cross-cutting semantics · **Human** = judgment, hardware, golden blessing.

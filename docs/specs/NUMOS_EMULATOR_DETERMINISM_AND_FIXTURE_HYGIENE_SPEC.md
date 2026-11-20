@@ -1,5 +1,7 @@
 # NumOS — Emulator Determinism & Fixture Hygiene Specification
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > **What "done" means:** a `.numos` run's observable output (pixels, assert results, exit code, files written) is a pure function of *(binary, script, CLI flags)* — never of the host's wall clock, a previous run's leftovers, the host keyboard layout, or the checkout's dirty state — and every file a test run creates has a declared home and lifecycle. Companion docs: `NUMOS_EMULATOR_PERSISTENCE_SANDBOX_SPEC.md` (SANDBOX), `NUMOS_EMULATOR_CI_ARTIFACT_AND_GOLDEN_POLICY_SPEC.md` (CIART), `NUMOS_EMULATOR_HOST_PORTABILITY_SPEC.md` (PORT), `NUMOS_EMULATOR_DETERMINISM_IMPLEMENTATION_ROADMAP.md` (EMUROAD). This spec refines — and never contradicts — `NUMOS_STATUSBAR_TRUTHFULNESS_AND_SYSTEM_CHROME_SPEC.md` (SBAR, esp. SB-03), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE, esp. §F/GS-03), and `NUMOS_SYSTEM_CHROME_QA_ORACLE_AND_GOLDEN_PLAN.md` (SCQA, esp. QA-05).
 >
 > Audit base: branch `claude/numos-emulator-determinism-specs-69nso8` (2026-07-04), working tree clean at audit start. Notation: **[V]** verified with `file:line` evidence · **[P]** proposed (desired behavior; does not exist yet). SPEC-ONLY: no code changed.

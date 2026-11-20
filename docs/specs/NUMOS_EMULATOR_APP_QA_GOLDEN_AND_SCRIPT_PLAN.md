@@ -1,5 +1,7 @@
 # NumOS — Emulator App QA, Golden and Script Plan (P-05)
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > Part of the P-05 spec set (see `NUMOS_EMULATOR_APP_ENABLEMENT_PARITY_SPEC.md`
 > for the parity ladder P0-P7 and scope). This document is the test plan for app
 > enablement. Verified claims cite `file:line`; plans are **[PROPOSED]**.

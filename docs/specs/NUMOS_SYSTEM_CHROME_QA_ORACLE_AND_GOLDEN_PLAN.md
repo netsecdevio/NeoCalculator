@@ -1,5 +1,7 @@
 # NumOS — System Chrome QA Oracle & Golden Plan
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > **What "done" means:** every system-chrome contract in SET/SBAR/GSTATE has an executable oracle — a semantic assert, a golden, or an explicitly-manual checklist row — and the chrome stops being the part of the screen CI masks away. Companion docs: `NUMOS_SETTINGS_APP_PRODUCT_SPEC.md` (SET), `NUMOS_STATUSBAR_TRUTHFULNESS_AND_SYSTEM_CHROME_SPEC.md` (SBAR), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE), `NUMOS_SYSTEM_CHROME_IMPLEMENTATION_ROADMAP.md` (SCROAD). This plan extends — never contradicts — `NUMOS_CORE_APPS_QA_ORACLE_AND_STRESS_PLAN.md` (core-QA) and reuses hook names already reserved by the Grapher hooks spec (GHOOK: `set_angle_mode`, `assert_graph_angle_mode`) and core-QA-03 (`assert_status_indicator`).
 >
 > Audit base: branch `claude/numos-system-chrome-spec-0gtoxn` @ `5fc5ea3` (2026-07-04). **Namespace note:** QA-* ticket numbers in this pack are the *system-chrome* QA series (SCROAD §0); the core-apps plan's QA-01…QA-08 are cited as core-QA-0n.

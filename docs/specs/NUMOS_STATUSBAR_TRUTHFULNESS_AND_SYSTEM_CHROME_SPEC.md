@@ -1,5 +1,7 @@
 # NumOS — StatusBar Truthfulness & System Chrome Specification
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 > **What "done" means:** the StatusBar never lies. Every indicator it paints — clock, title, angle badge, modifier, battery — either reflects verified live state or visibly declares itself unavailable/simulated. The same rule extends to the two sibling chrome surfaces (the launcher's bar and the legacy TFT header). Companion docs: `NUMOS_SETTINGS_APP_PRODUCT_SPEC.md` (SET), `NUMOS_GLOBAL_SETTINGS_STATE_AND_PERSISTENCE_SPEC.md` (GSTATE), `NUMOS_SYSTEM_CHROME_QA_ORACLE_AND_GOLDEN_PLAN.md` (SCQA), `NUMOS_SYSTEM_CHROME_IMPLEMENTATION_ROADMAP.md` (SCROAD).
 >
 > Audit base: branch `claude/numos-system-chrome-spec-0gtoxn` @ `5fc5ea3` (2026-07-04). Notation: **[V]** verified with `file:line` · **[P]** proposed · **PD-Bn** product decision · **OQ-Bn** open question.

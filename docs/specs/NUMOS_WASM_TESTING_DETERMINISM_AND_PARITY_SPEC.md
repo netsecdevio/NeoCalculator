@@ -1,5 +1,7 @@
 # NumOS WASM — Testing, Determinism, and Parity Specification
 
+> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+
 Status: SPEC (no implementation). Part 5 of the WASM port pack.
 Convention: **[verified]** = read from source at `main` @ `ad536a7`; **[proposed]** = design.
 
