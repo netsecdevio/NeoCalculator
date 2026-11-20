@@ -72,12 +72,15 @@ try {for(const engine of [chromium,webkit]){
     assert.equal(feedback.graph.expression,'2*x+12');assert.equal(feedback.annotations[1].anchor.kind,'graph');assert.ok(feedback.annotations[1].anchor.x>0&&feedback.annotations[1].anchor.x<1);
     assert.deepEqual(feedback.annotations[2].anchor,{kind:'graph',x:0.325,y:0.3});
     const anchor=feedback.annotations[1].anchor;
+    // Older/API clients may store an equation rather than a bare expression.
+    feedback={...feedback,graph:{...feedback.graph,expression:'  Y = 2*x+12 '}};
     let releaseStartup;const startupGate=new Promise(resolve=>{releaseStartup=resolve;});
     await page.route('**/numos-math-assets.json?*',async route=>{await startupGate;await route.continue();});
     await page.reload();await page.getByRole('button',{name:'Open saved work',exact:true}).click();await page.getByRole('button',{name:'Find the line — algebra',exact:true}).click();
     await panel.getByRole('status').filter({hasText:'Drawing graph…'}).waitFor();
     releaseStartup();
     await panel.locator('.annotation-graph').waitFor({state:'visible'});
+    assert.equal(await panel.getByLabel('Graph expression',{exact:true}).inputValue(),'2*x+12','restored graph input is canonical and matches rendering');
     await panel.locator('.graph-pin').first().waitFor();assert.equal(await panel.locator('mark').innerText(),'Find the slope');
     assert.equal(await panel.locator('.annotation-list li').count(),3);
     for(const width of [320,768,1024,1440]){

@@ -2,9 +2,10 @@
 const element=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
 const button=(text,action)=>{const node=element('button',text);node.type='button';node.onclick=action;return node;};
 export const stepText=step=>step.explanation+(step.math?'\n'+step.math:'');
+const graphExpression=value=>value.trim().replace(/^y\s*=\s*/i,'');
 
 export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
-  let notes=structuredClone(saved?.annotations||[]),graph=saved?.graph?{...saved.graph}:null;
+  let notes=structuredClone(saved?.annotations||[]),graph=saved?.graph?{...saved.graph,expression:graphExpression(saved.graph.expression)}:null;
   let active=false,locked=false,pending=null,editingIndex=null,graphBusy=false,graphGeneration=0;
   const root=element('section',undefined,'annotation-workspace');
   const toolbar=element('div',undefined,'annotation-toolbar');
@@ -53,7 +54,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
   const plot=button('Draw graph',async()=>{
     if(locked||graphBusy)return;
     if(pending){message.textContent='Add or cancel your current comment first.';return;}
-    const expression=graphInput.value.trim().replace(/^y\s*=\s*/i,'');
+    const expression=graphExpression(graphInput.value);
     if(!expression||new TextEncoder().encode(expression).length>2000){message.textContent='Enter a graph expression up to 2,000 bytes.';return;}
     if(notes.some(n=>n.anchor?.kind==='graph')&&expression!==graph?.expression){message.textContent='Remove the graph comments before changing their graph.';return;}
     await draw({expression},expression!==graph?.expression);
@@ -146,7 +147,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
   renderNotes();if(graph)void draw(graph,false);
   return {
     value:()=>({annotationFormat:2,annotations:structuredClone(notes),...(graph?{graph:{...graph}}:{})}),
-    pending:()=>pending!==null||graphBusy||graphInput.value.trim().replace(/^y\s*=\s*/i,'')!==(graph?.expression||''),
+    pending:()=>pending!==null||graphBusy||graphExpression(graphInput.value)!==(graph?.expression||''),
     setDisabled(value){locked=value;toggle.disabled=value;plot.disabled=value||graphBusy;graphInput.disabled=value;pointX.disabled=pointY.disabled=pointButton.disabled=removeGraph.disabled=value;add.disabled=cancel.disabled=text.disabled=value;renderNotes();if(value){active=false;refreshMode();}},
   };
 }
