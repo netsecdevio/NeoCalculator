@@ -24,7 +24,7 @@ extension. Current candidate set: `launcher_smoke`, `calc_1_plus_2`,
 `calc_fraction_sum`.
 
 A golden may have an optional **ignore-rect mask** (Phase 4B-B) covering a known
-nondeterministic region — today only the CalculationApp blinking cursor. With a
+nondeterministic region — the live StatusBar HH:MM clock. With a
 mask, CI ignores those pixels; with no mask the compare is byte-exact. Masks are
 also human-gated; see [`tests/emulator/masks/README.md`](../masks/README.md).
 
@@ -71,19 +71,19 @@ also human-gated; see [`tests/emulator/masks/README.md`](../masks/README.md).
    Re-blessing a changed golden follows the same path with `--force`; review the
    old-vs-new diff in the PR (see *Updating a golden* below).
 
-### Promoting a golden that needs a mask (cursor nondeterminism)
+### Promoting a golden that needs a mask (clock nondeterminism)
 
 Some screens (the calc screens) are not byte-stable across separate launches
-because the input cursor blinks. To promote one safely:
+because the StatusBar reads the host clock. To promote one safely:
 
 1. Prove the volatility: regenerate the same candidate twice and diff them —
    `python scripts/compare-ppm.py a.ppm b.ppm --write-diff jitter.ppm`. The
-   magenta region is the minimum the mask must cover (it should be only the cursor
-   band, nothing else).
+   magenta region is the minimum the mask must cover (it should be only the clock
+   rectangle, nothing else).
 2. Visually confirm the candidate is **semantically correct** (e.g. `1+2` really
-   renders `3`). Masking the cursor does not relax this judgement.
+   renders `3`). Masking the clock does not relax this judgement.
 3. Author a tight `tests/emulator/masks/<name>.mask` (see that directory's README)
-   covering the cursor band, with a comment explaining why.
+   covering the clock rectangle, with a comment explaining why.
 4. Verify the mask closes the gate: `compare-ppm.py a.ppm b.ppm --mask-file
    tests/emulator/masks/<name>.mask` must report IDENTICAL (exit 0).
 5. Commit the golden **and** the mask together so review sees both. The promote
@@ -94,7 +94,7 @@ because the input cursor blinks. To promote one safely:
    ```bash
    python scripts/promote-emulator-golden.py calc_1_plus_2   # copies the golden
    git add tests/emulator/golden/calc_1_plus_2.ppm tests/emulator/masks/calc_1_plus_2.mask
-   git commit -m "Accept golden+mask: calc_1_plus_2 renders 3 (cursor region masked)"
+   git commit -m "Accept golden+mask: calc_1_plus_2 renders 3 (clock region masked)"
    ```
 
 ## Updating a golden after an intentional UI / render change
@@ -132,7 +132,7 @@ When a deliberate change legitimately alters the rendered pixels, the old golden
 
 Byte-comparison proves a candidate matches an accepted image; it does **not**
 itself assert semantic correctness. Semantic correctness is the human's
-judgement at promotion time. Phase 4B-B adds *cursor-safe masking* so calc
-screenshots can be compared despite blink nondeterminism — it still does not read
+judgement at promotion time. Phase 4B-B adds *clock-only masking* so calc
+screenshots can be compared despite wall-clock nondeterminism — it still does not read
 the result. OCR / automated result extraction (proving the pixels actually read
 `3` without a hand-reviewed golden) is a later phase (Phase 4B-C).

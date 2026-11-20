@@ -61,6 +61,36 @@ const dirty = execFileSync(
   { cwd: repo, encoding: "utf8" }).trim().length > 0;
 const emscriptenVersion = (
   await readFile(join(repo, "wasm", "emscripten.version"), "utf8")).trim();
+// Version every UI dependency so a returning browser cannot mix old code with new HTML.
+assets.steps = await asset("steps", "learning-steps.js",
+  await readFile(join(sourceDir, "learning-steps.js")), "text/javascript");
+assets.mathFont = await asset("mathFont", "JetBrainsMono-Regular.woff2",
+  await readFile(join(sourceDir, "branding/JetBrainsMono-Regular.woff2")), "font/woff2");
+assets.fontLicense = await asset("fontLicense", "JetBrainsMono-OFL.txt",
+  await readFile(join(sourceDir, "branding/JetBrainsMono-OFL.txt")), "text/plain");
+assets.brandMark = await asset("brandMark", "silas-mark.png",
+  await readFile(join(sourceDir, "branding/silas-mark.png")), "image/png");
+let theme = await readFile(join(sourceDir, "silas-theme.css"), "utf8");
+theme = theme.replace("./branding/JetBrainsMono-Regular.woff2", assets.mathFont.url);
+assets.theme = await asset("theme", "silas-theme.css", Buffer.from(theme), "text/css");
+let styles = await readFile(join(sourceDir, "workspace.css"), "utf8");
+styles = styles.replace("./silas-theme.css", assets.theme.url);
+assets.styles = await asset("styles", "workspace.css",
+  Buffer.from(styles), "text/css");
+let workspace = await readFile(join(sourceDir, "workspace.js"), "utf8");
+const manifestToken = sha256(Buffer.concat([
+  Buffer.from(JSON.stringify({assets, workspace, gitRevision, dirty, emscriptenVersion, requested})),
+  await readFile(fileURLToPath(import.meta.url)),
+])).slice(0, 24);
+workspace = workspace.replace("./learning-steps.js", assets.steps.url)
+  .replaceAll("./numos-math-assets.json", `./numos-math-assets.json?v=${manifestToken}`);
+assets.workspace = await asset("workspace", "workspace.js", Buffer.from(workspace), "text/javascript");
+let html = await readFile(join(sourceDir, "index.html"), "utf8");
+html = html.replace('href="workspace.css"', `href="${assets.styles.url}"`)
+  .replaceAll('branding/silas-mark.png', assets.brandMark.url)
+  .replace('src="workspace.js"', `src="${assets.workspace.url}"`);
+await writeFile(join(distDir, "index.html"), html);
+
 const manifest = {
   schemaVersion: 1,
   build: {
@@ -96,7 +126,3 @@ for (const entry of Object.values(assets)) {
     throw new Error(`invalid ${entry.logicalName}`);
 }
 console.log(JSON.stringify(report, null, 2));
-
-for (const name of ["index.html", "workspace.js", "workspace.css", "learning-steps.js"]) {
-  await writeFile(join(distDir, name), await readFile(join(sourceDir, name)));
-}
