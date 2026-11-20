@@ -1,6 +1,6 @@
 # NumOS — Emulator App Enablement Parity Spec (P-05)
 
-> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
 
 > Master document of the P-05 spec set. Companions:
 > `NUMOS_EMULATOR_PER_APP_ENABLEMENT_MATRIX.md` (per-app detail),
@@ -65,7 +65,7 @@ today a **git-tracked file loaded at every boot** (`NativeHal.cpp:2171-2179`;
 FIX-02/FIX-03 land multiplies the dirty-tree hazard. Likewise, `rand()` sites in
 the exact apps P-05 targets trip the EMUDET-03 seed fence, and the StatusBar
 clock reads host wall time even under `--deterministic`
-(`masks/README.md:22-36`), forcing the shared `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) mask on every new
+(`masks/README.md:22-36`), forcing the shared `215,6,37,13` mask on every new
 StatusBar screen until EMUDET-01/SB-03 land.
 
 ---
@@ -161,7 +161,7 @@ it may not be called "emulator-enabled" below P2.
    recommended before *any* new app (Hazard 6).
 2. **Dirty-tree guard** — CI-01 (`git diff --exit-code emulator_data/` post-suite).
 3. **Deterministic clock** — EMUDET-01/SB-03 (virtual `time()`); until it lands,
-   every new StatusBar screen inherits the `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) clock mask and no other.
+   every new StatusBar screen inherits the `215,6,37,13` clock mask and no other.
 4. **Seed fence** — EMUDET-03 (`srand(1)` + time/rand grep over the whitelist set):
    must land with or before the first `rand()`-carrying app (Equations/Calculus).
 5. **Assert-failure screenshot capture** — CI-04/QA-05 (`<stem>.assertfail.ppm`),
@@ -338,7 +338,7 @@ failure mode that turns the emulator into a different product (risk EMU-1).
    loaded at every boot (`NativeHal.cpp:2171-2179`).
 2. **Which apps can be enabled before the deterministic clock (EMUDET-01)?**
    All P-05 four and every app whose only wall-clock pixel is the StatusBar
-   `HH:MM` — they inherit the shared `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`) mask. No audited app renders
+   `HH:MM` — they inherit the shared `215,6,37,13` mask. No audited app renders
    wall time anywhere else (NeoLang's `time_it` prints elapsed time to its
    console, `NeoInterpreter.cpp:767-800` — assert-only screens for it).
 3. **Which apps import new filesystem writes?** Firmware surfaces: Python

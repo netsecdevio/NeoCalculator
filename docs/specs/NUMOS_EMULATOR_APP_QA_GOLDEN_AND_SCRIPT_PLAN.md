@@ -1,6 +1,6 @@
 # NumOS — Emulator App QA, Golden and Script Plan (P-05)
 
-> Clock-mask update (2026-11-20): the audit-time coordinates and proposals below are historical. Current runs use the right-aligned HH:MM mask `215,6,37,13`; deterministic cursor blinking is not masked. Follow [the current mask contract](../../tests/emulator/masks/README.md) when generating or reviewing new screenshots.
+> Clock-mask contract refreshed 2026-11-20: all operative clock-mask references below use `215,6,37,13`. The original audit used the retired left-side `4,6,37,13`; that value is historical only. Other audit observations and unimplemented proposals retain their original scope. [The current mask contract](../../tests/emulator/masks/README.md) is authoritative; deterministic cursor pixels remain byte-gated.
 
 > Part of the P-05 spec set (see `NUMOS_EMULATOR_APP_ENABLEMENT_PARITY_SPEC.md`
 > for the parity ladder P0-P7 and scope). This document is the test plan for app
@@ -22,7 +22,7 @@
 - **Goldens:** 19 under `tests/emulator/golden/`. **Masks:** 18 (every golden
   except `launcher_smoke`, which has no StatusBar and is byte-gated;
   `masks/README.md:13-14`). All 18 masks carry the single shared clock rect
-  `4,6,37,13` (**historical audit**; superseded for current work by `215,6,37,13`).
+  `215,6,37,13`.
 - **Candidate stems:** 25 in `scripts/generate-emulator-candidates.py:39-143`
   (frames 800 for open+shot smokes, 1400 for typing-heavy runs). Six stems are
   **warning-only** (candidate generated, no committed golden):
