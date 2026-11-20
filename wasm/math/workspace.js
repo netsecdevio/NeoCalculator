@@ -1,41 +1,57 @@
-import {buildExplanation} from './learning-steps.js';
+import {loadModels,requestExplanation,loadClasses,saveFeedback} from './learning-steps.js';
 const input = document.querySelector('#expression');
 const status = document.querySelector('#status');
 const answer = document.querySelector('#answer');
 const canvas = document.querySelector('#graph');
 // Clear session deliberately has no data-action: it stays enabled during loads and failures.
 const buttons = [...document.querySelectorAll('[data-action]')];
-let math, createMath, generation = 0;
+let math, createMath, generation = 0, running = false;
 const explanation = document.querySelector('#explanation');
 let explanationVersion = 0;
 function clearExplanation() { ++explanationVersion; explanation.hidden=true; explanation.replaceChildren(); }
 input.addEventListener('input', () => { clearExplanation(); answer.textContent=''; canvas.hidden=true; document.querySelector('#graph-description').textContent=''; status.textContent='New problem. Calculate or ask for steps.'; });
 async function explain() {
-  if (!math || buttons[0].disabled) return;
+  if(running) return;
+  const text=input.value.trim();
+  if(!text){status.textContent='Enter a problem or describe what is confusing.';return;}
   clearExplanation();
-  const version=explanationVersion,token=generation,session=math,text=input.value.trim();
-  busy(true); status.textContent='Checking each step…';
+  const version=explanationVersion,token=generation;
+  busy(true);status.textContent='Finding relevant sources and asking your teaching model…';
   try {
-    const plan=buildExplanation(text);
-    if(!plan) { status.textContent='Steps are not available for this expression yet. Try 2*x+4=0, 1/3+1/6, or log10(1000).'; return; }
-    for(const item of plan.checks) {
-      const difference='('+item.expression+')-('+item.expected+')';
-      let verified=await session.evaluate(difference);
-      if(verified.result?.kind!=='integer' || verified.result.value!=='0') verified=await session.simplify(difference);
-      if(verified.result?.kind!=='integer' || verified.result.value!=='0') throw Error('These steps could not be verified. They have not been shown.');
-    }
+    const result=await requestExplanation(text,document.querySelector('#learning-context').value,document.querySelector('#teaching-model').value,document.querySelector('#learning-class').value);
     if(token!==generation || version!==explanationVersion) return;
-    const heading=document.createElement('h2');heading.textContent=plan.title;
+    if(!Array.isArray(result.steps)||!Array.isArray(result.sources))throw Error('The teaching response could not be read. Please try again.');
+    const heading=document.createElement('h2');heading.textContent=result.title;
     const list=document.createElement('ol');
-    for(const step of plan.steps) {
+    for(const step of result.steps){
       const item=document.createElement('li'),instruction=document.createElement('p'),mathLine=document.createElement('p');
-      instruction.textContent=step.instruction;mathLine.textContent=step.math;mathLine.className='step-math';
-      item.append(instruction,mathLine);list.append(item);
+      instruction.textContent=step.explanation;mathLine.textContent=step.math||'';mathLine.className='step-math';item.append(instruction,mathLine);
+      for(const id of step.citationIds||[]){
+        const source=result.sources.find(s=>s.id===id);if(!source)continue;
+        const url=new URL(source.url);if(url.protocol!=='https:')continue;
+        const link=document.createElement('a');link.href=url.href;link.textContent=source.title+' · '+source.locator;link.target='_blank';link.rel='noopener noreferrer';item.append(link,document.createTextNode(' '));
+      }
+      list.append(item);
     }
-    explanation.append(heading,list);explanation.hidden=false;
-    status.textContent='Steps checked. Try explaining the next move in your own words.';
-  } catch(error) { if(token===generation && version===explanationVersion) status.textContent=error.message; }
-  finally { if(token===generation) busy(false); }
+    const answerLine=document.createElement('p');answerLine.className='step-math';answerLine.textContent=result.answer||'';
+    const question=document.createElement('p');question.textContent=result.question||'';
+    const limits=document.createElement('p');limits.textContent=(result.limitations||[]).join(' ');
+    explanation.append(heading,list,answerLine,question,limits);
+    mountFeedback(result);explanation.hidden=false;
+    status.textContent='Source-guided explanation · '+result.model+'. Check the reasoning as you work.';
+  }catch(error){if(token===generation&&version===explanationVersion)status.textContent=error.message;}
+  finally{if(token===generation)busy(false);}
+}
+async function refreshTeachingModels(){
+  const select=document.querySelector('#teaching-model');
+  try{
+    const catalog=await loadModels();
+    if(!Array.isArray(catalog.models))throw Error('Model catalog unavailable');
+    select.replaceChildren();
+    for(const model of catalog.models){const option=document.createElement('option');option.value=model.id;option.textContent=model.label;select.append(option);}
+    select.value=catalog.default_model;
+    document.querySelector('#model-status').textContent=catalog.models.length+' configured models listed; provider availability may vary.';
+  }catch(error){document.querySelector('#model-status').textContent=error.message;}
 }
 function nodeText(node) {
   if (node.value !== undefined) return node.value;
@@ -59,7 +75,7 @@ function solveText(result) {
   if (result.setKind !== 'solutions') return 'This equation is not supported yet.';
   return result.groups.map(group => group.values.map(v => v.variable + ' = ' + nodeText(v.value)).join(', ')).join(' or ');
 }
-function busy(value) { buttons.forEach(button => { button.disabled = value; }); }
+function busy(value) { running=value; buttons.forEach(button => { button.disabled = value || (!math && button.dataset.action!=='explain'); }); }
 async function reset() {
   const token = ++generation; clearExplanation();
   busy(true); input.value = ''; answer.textContent = ''; canvas.hidden = true;
@@ -71,7 +87,7 @@ async function reset() {
     const session = await createMath({manifestUrl: new URL('./numos-math-assets.json', import.meta.url)});
     if (token !== generation) { await session.shutdown(); return; }
     math = session; status.textContent = 'Ready. Start with something simple.'; busy(false);
-  } catch(error) { if(token === generation) status.textContent = 'Could not start: ' + error.message; }
+  } catch(error) { if(token === generation) {status.textContent = 'Calculator unavailable; you can still ask for teaching help.';busy(false);} }
 }
 async function run(action) {
   if(action==='explain') { await explain(); return; }
@@ -117,6 +133,48 @@ try {
   const manifest = await response.json();
   const module = await import(new URL(manifest.assets.client.url, manifestUrl));
   createMath = module.createNumosMath; await reset();
-} catch(error) { status.textContent='Could not load calculator: '+error.message+'. Choose Clear session to retry.'; }
+} catch(error) { status.textContent='Could not load calculator: '+error.message+'. Choose Clear session to retry, or ask for teaching help.';busy(false); }
 }
 void load();
+
+void refreshTeachingModels();
+
+for(const id of ["learning-context","teaching-model"]) document.getElementById(id).addEventListener("input",clearExplanation);
+
+const classSelect=document.createElement('select');classSelect.id='learning-class';
+const classLabel=document.createElement('label');classLabel.htmlFor='learning-class';classLabel.textContent='Your class';
+input.before(classLabel,classSelect);
+loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
+const dirtyPanels=new Set();
+window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
+function mountFeedback(result){
+  if(!result.outputId||!result.revision)return;
+  const panel=document.createElement('section');panel.className='feedback';
+  const heading=document.createElement('h2');heading.textContent='Your notes and work';
+  const description=document.createElement('p');description.textContent='Class: '+result.classId+'. Notes stay attached to this explanation.';
+  panel.append(heading,description);
+  const fields=[];
+  function field(labelText,maxLength){const label=document.createElement('label'),field=document.createElement('textarea');field.maxLength=maxLength;label.textContent=labelText;label.append(field);panel.append(label);fields.push(field);return field;}
+  const annotations=result.steps.map((step,index)=>field('Step '+(index+1)+' — what helped or confused you?',2000));
+  const work=field('Show your work or describe your approach',12000);
+  const comment=field('What should we explain differently?',12000);
+  const rating=document.createElement('select');rating.setAttribute('aria-label','How was this explanation?');
+  for(const [value,label] of [['','Choose feedback'],['helpful','Helpful'],['confusing','Confusing'],['incorrect','I think something is incorrect']]){const option=document.createElement('option');option.value=value;option.textContent=label;rating.append(option);}
+  panel.append(rating);fields.push(rating);
+  let version=0,editing=0;panel.addEventListener('input',()=>{dirtyPanels.add(panel);editing++;});
+  const message=document.createElement('p');message.setAttribute('role','status');
+  const draft=document.createElement('button'),submit=document.createElement('button');draft.textContent='Save draft';submit.textContent='Submit for review';
+  async function send(submitted){
+    draft.disabled=submit.disabled=true;const snapshot=editing;
+    try{
+      const response=await saveFeedback(result.outputId,{revision:result.revision,version,submit:submitted,feedback:{annotations:annotations.flatMap((n,i)=>n.value.trim()?[{step:i,text:n.value.trim()}]:[]),work:work.value,comment:comment.value,rating:rating.value}});
+      version=response.version;if(editing===snapshot)dirtyPanels.delete(panel);
+      message.textContent=response.submitted?'Submitted for review.':'Draft saved.';
+      if(response.submitted){fields.forEach(f=>f.disabled=true);return;}
+    }catch(error){message.textContent='Not saved. Your notes are still here. '+error.message;}
+    draft.disabled=submit.disabled=false;
+  }
+  draft.onclick=()=>send(false);submit.onclick=()=>send(true);panel.append(draft,submit,message);
+  // Keep prior work visible even when another explanation is requested.
+  explanation.after(panel);
+}

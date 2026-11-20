@@ -1,64 +1,36 @@
-// Deterministic teaching templates. Unsupported expressions are never guessed.
-const abs = n => n < 0n ? -n : n;
-function gcd(a,b) { a=abs(a); b=abs(b); while(b) [a,b]=[b,a%b]; return a; }
-function rational(n,d=1n) {
-  if (!d) throw Error('A denominator cannot be zero.');
-  if (d<0n) {n=-n;d=-d;}
-  const g=gcd(n,d); return {n:n/g,d:d/g};
-}
-const parse = value => { const [n,d='1']=value.split('/'); return rational(BigInt(n),BigInt(d)); };
-const subtract = (a,b) => rational(a.n*b.d-b.n*a.d,a.d*b.d);
-const divide = (a,b) => rational(a.n*b.d,a.d*b.n);
-const show = value => value.d===1n ? String(value.n) : `${value.n}/${value.d}`;
-const check = (expression,expected) => ({expression,expected});
-export function buildExplanation(input) {
-  if (typeof input !== 'string' || input.length>2000 || /\d\s+\d/.test(input)) return null;
-  const text=input.replace(/\s+/g,'');
-  // ax+b=c, with bounded integer/fraction coefficients. No arbitrary parsing/eval.
-  const linear=text.match(/^([+-]?(?:\d{1,6}(?:\/\d{1,6})?)?)\*?x([+-]\d{1,6}(?:\/\d{1,6})?)?=(-?\d{1,6}(?:\/\d{1,6})?)$/);
-  if (linear && !/^[+-]?\*x/.test(text)) {
-    const a=parse(linear[1]===''||linear[1]==='+'?'1':linear[1]==='-'?'-1':linear[1]);
-    const b=parse(linear[2]||'0'),c=parse(linear[3]);
-    if (!a.n) return null;
-    const remaining=subtract(c,b),solution=divide(remaining,a);
-    const A=show(a),B=show(b),C=show(c),R=show(remaining),X=show(solution);
-    const change=b.n<0n ? `Add ${show(rational(-b.n,b.d))} to both sides.` : b.n>0n ? `Subtract ${B} from both sides.` : 'The x term is already on its own.';
-    return {title:'Solve a linear equation',steps:[
-      {instruction:'Keep both sides equal as you isolate x.',math:text},
-      {instruction:change,math:`(${A}) × x = ${R}`},
-      {instruction:`Divide both sides by ${A}.`,math:`x = ${X}`},
-      {instruction:'Put that value back into the original equation to check it.',math:`(${A}) × (${X}) + (${B}) = ${C}`},
-    ],checks:[check(`(${C})-(${B})`,R),check(`(${R})/(${A})`,X),check(`(${A})*(${X})+(${B})`,C)]};
+// All teaching requests go to the shared LLM + retrieval service. No solution templates.
+const pending = new Map();
+window.addEventListener('message', event => {
+  if (event.source !== window.parent || event.origin !== window.location.origin) return;
+  const message=event.data;
+  if (!message || message.type!=='brainfood-math-response' || !pending.has(message.id)) return;
+  const job=pending.get(message.id);pending.delete(message.id);clearTimeout(job.timer);
+  if(message.error) job.reject(Error(String(message.error)));
+  else job.resolve(message.data);
+});
+async function request(action, body) {
+  if(new URLSearchParams(window.location.search).get('transport')==='parent' && window.parent!==window) {
+    const id=crypto.randomUUID();
+    return new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>{pending.delete(id);reject(Error('Teaching help timed out. Please try again.'));},180000);
+      pending.set(id,{resolve,reject,timer});
+      window.parent.postMessage({type:'brainfood-math-request',id,action,body},window.location.origin);
+    });
   }
-  const fraction=text.match(/^([+-]?\d{1,6})\/(\d{1,6})([+-])(\d{1,6})\/(\d{1,6})$/);
-  if (fraction) {
-    const a=parse(`${fraction[1]}/${fraction[2]}`),b=parse(`${fraction[4]}/${fraction[5]}`);
-    const denominator=a.d/gcd(a.d,b.d)*b.d;
-    const left=a.n*(denominator/a.d),right=b.n*(denominator/b.d);
-    const numerator=fraction[3]==='+'?left+right:left-right;
-    const result=show(rational(numerator,denominator));
-    return {title:'Combine fractions',steps:[
-      {instruction:'Use a common denominator.',math:`Common denominator: ${denominator}`},
-      {instruction:'Multiply each numerator and denominator by the same amount.',math:`${show(a)} = ${left}/${denominator}; ${show(b)} = ${right}/${denominator}`},
-      {instruction:'Combine the numerators. Keep the denominator.',math:`(${left} ${fraction[3]} ${right})/${denominator} = ${numerator}/${denominator}`},
-      {instruction:'Reduce by any common factor.',math:result},
-    ],checks:[check(show(a),`${left}/${denominator}`),check(show(b),`${right}/${denominator}`),check(text,result)]};
-  }
-  const log=text.match(/^log10\((\d{1,13}(?:\.\d{1,12})?)\)$/);
-  if (log) {
-    const [whole,decimal='']=log[1].split('.');
-    const value=rational(BigInt(whole+decimal),10n**BigInt(decimal.length));
-    let exponent;
-    for(let n=-12;n<=12;n++) {
-      const power=n>=0?rational(10n**BigInt(n)):rational(1n,10n**BigInt(-n));
-      if(power.n===value.n && power.d===value.d) {exponent=n;break;}
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),180000);
+  try {
+    const response=await fetch('/api/brainfood/math/'+action,{method:body?'POST':'GET',credentials:'same-origin',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal});
+    if(!response.ok) {
+      if(response.status===401||response.status===403) throw Error('Please sign in or pair this device to ask for teaching help.');
+      if(response.status===429) throw Error('The tutor is busy. Please try again shortly.');
+      throw Error('Teaching help is temporarily unavailable. Your problem has not been rejected.');
     }
-    if(exponent===undefined) return null;
-    return {title:'Understand a base-10 logarithm',steps:[
-      {instruction:'A logarithm asks for an exponent.',math:`log10(${log[1]}) means: 10 to what power equals ${log[1]}?`},
-      {instruction:'Write the number as a power of 10.',math:`10^(${exponent}) = ${log[1]}`},
-      {instruction:'That exponent is the answer.',math:`log10(${log[1]}) = ${exponent}`},
-    ],checks:[check(`10^(${exponent})`,show(value)),check(`log10(${show(value)})`,String(exponent))]};
-  }
-  return null;
+    if(!response.headers.get('content-type')?.includes('application/json'))throw Error('Please sign in again to ask for teaching help.');
+    return await response.json();
+  } finally {clearTimeout(timeout);}
 }
+export const loadModels=()=>request('models');
+export const requestExplanation=(problem,context,model,classId)=>request('explain',{problem,context,classId,...(model?{model}:{})});
+
+export const loadClasses=()=>request("classes");
+export const saveFeedback=(id,body)=>request("outputs/"+encodeURIComponent(id)+"/feedback",body);
