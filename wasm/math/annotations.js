@@ -1,18 +1,27 @@
+import {renderMathText,selectedCanonicalText} from './math-text.js';
+import {appendSourceCallout} from './source-callout.js';
 // Anchors are data, never HTML. Text offsets use JavaScript's UTF-16 indexing.
 const element=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
 const button=(text,action)=>{const node=element('button',text);node.type='button';node.onclick=action;return node;};
 export const stepText=step=>step.explanation+(step.math?'\n'+step.math:'');
 const graphExpression=value=>value.trim().replace(/^y\s*=\s*/i,'');
 
-export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
+export function mountAnnotations(host,result,saved,{onChange,renderGraph,sourcePreviews=[]}) {
   let notes=structuredClone(saved?.annotations||[]),graph=saved?.graph?{...saved.graph,expression:graphExpression(saved.graph.expression)}:null;
   let active=false,locked=false,pending=null,editingIndex=null,graphBusy=false,graphGeneration=0;
   const root=element('section',undefined,'annotation-workspace');
   const toolbar=element('div',undefined,'annotation-toolbar');
   const toggle=button('Annotate',()=>{active=!active;refreshMode();});toggle.setAttribute('aria-pressed','false');
-  const help=element('p','Choose Annotate, then tap a step or highlight the words you want to comment on.','annotation-hint');
+  const help=element('p','Tap a step or highlight the words you want to comment on.','annotation-hint');help.hidden=true;
   const message=element('p');message.setAttribute('role','status');
   const body=element('div',undefined,'annotation-layout'),lesson=element('div',undefined,'annotation-lesson');
+  let currentStep=0,showAll=false;
+  const navigation=element('nav',undefined,'step-navigation');navigation.setAttribute('aria-label','Explanation steps');
+  const progress=element('p');progress.setAttribute('role','status');
+  const previous=button('Back',()=>{currentStep--;showStep(true);});
+  const next=button('Next step',()=>{currentStep++;showStep(true);});
+  const all=button('Show all steps',()=>{showAll=!showAll;showStep(false);});all.setAttribute('aria-pressed','false');
+  navigation.append(progress,previous,next,all);lesson.append(navigation);
   const rail=element('aside',undefined,'annotation-comments');rail.setAttribute('aria-label','Comments on this explanation');
   const noteList=element('ol',undefined,'annotation-list');
   const composer=element('div',undefined,'annotation-composer');composer.hidden=true;
@@ -23,14 +32,14 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
   composer.append(target,label,add,cancel);rail.append(element('h3','Your comments'),noteList,composer,message);
   toolbar.append(toggle);root.append(toolbar,help,body);body.append(lesson,rail);host.append(root);
   const stepNodes=result.steps.map((step,index)=>{
-    const section=element('section',undefined,'annotation-step'),heading=element('h3','Step '+(index+1));
+    const section=element('section',undefined,'annotation-step'),heading=element('h3','Step '+(index+1));heading.tabIndex=-1;
     const content=element('p',stepText(step),'annotation-text');content.dataset.step=String(index);
     const mark=button('Comment on step '+(index+1),()=>start({step:index}));mark.className='step-comment';
     section.append(heading,content,mark);
     for(const id of step.citationIds||[]){
       const source=result.sources?.find(s=>s.id===id);if(!source)continue;
-      let url;try{url=new URL(source.url);}catch{continue;}if(url.protocol!=='https:'||url.username||url.password)continue;
-      const link=element('a',source.title+' · '+source.locator,'annotation-source');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';section.append(link);
+      const preview=sourcePreviews.find(p=>['id','title','url','locator'].every(key=>p[key]===source[key]));
+      appendSourceCallout(section,source,preview);
     }
     content.addEventListener('pointerup',()=>{
       if(!active||locked)return;
@@ -38,16 +47,27 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
       if(selection?.rangeCount&&!selection.isCollapsed){
         const range=selection.getRangeAt(0);
         if(!content.contains(range.startContainer)||!content.contains(range.endContainer)){message.textContent='Select words inside a single step.';return;}
-        const before=range.cloneRange();before.selectNodeContents(content);before.setEnd(range.startContainer,range.startOffset);
-        const startOffset=before.toString().length,endOffset=startOffset+range.toString().length;
-        start({step:index,anchor:{kind:'text',start:startOffset,end:endOffset,quote:stepText(step).slice(startOffset,endOffset)}});
+        const anchor=selectedCanonicalText(content,range,stepText(step));
+        if(anchor)start({step:index,anchor});
       }else start({step:index});
     });
-    lesson.append(section);return {section,content,mark};
+    lesson.append(section);return {section,content,mark,heading};
   });
-  if(result.answer)lesson.append(element('p',result.answer,'step-math'));
-  if(result.question)lesson.append(element('p',result.question));
-  if(result.limitations?.length)lesson.append(element('p',result.limitations.join(' '),'annotation-hint'));
+  const finalAnswer=element('section',undefined,'lesson-answer');
+  if(result.answer){const answer=element('p',undefined,'step-math');renderMathText(answer,result.answer);finalAnswer.append(element('h3','Putting it together'),answer);lesson.append(finalAnswer);}
+  if(result.question){const question=element('p');renderMathText(question,result.question);lesson.append(question);}
+  if(result.limitations?.length){const limits=element('p',undefined,'annotation-hint');renderMathText(limits,result.limitations.join(' '));lesson.append(limits);}
+  function showStep(focus){
+    currentStep=Math.max(0,Math.min(currentStep,stepNodes.length-1));
+    navigation.hidden=stepNodes.length<2;
+    progress.textContent=showAll?'All '+stepNodes.length+' steps':'Step '+(currentStep+1)+' of '+stepNodes.length;
+    previous.disabled=currentStep===0;next.disabled=currentStep===stepNodes.length-1;
+    previous.hidden=next.hidden=showAll;all.textContent=showAll?'One step at a time':'Show all steps';all.setAttribute('aria-pressed',String(showAll));
+    stepNodes.forEach(({section},i)=>{section.hidden=!showAll&&i!==currentStep;});
+    finalAnswer.hidden=!showAll&&currentStep<stepNodes.length-1;
+    if(focus)stepNodes[currentStep]?.heading.focus();
+  }
+  showStep(false);
 
   const graphDetails=element('details',undefined,'annotation-graph-tools');graphDetails.append(element('summary','Add a graph to this explanation'));
   const graphLabel=element('label','Graph expression'),graphInput=element('input');graphInput.maxLength=2000;graphInput.placeholder='For example: 2*x+12';graphInput.value=graph?.expression||'';graphLabel.append(graphInput);
@@ -98,8 +118,8 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
     }catch(error){if(generation===graphGeneration)message.textContent='Graph could not be drawn. '+error.message;}
     finally{if(generation===graphGeneration){graphBusy=false;plot.disabled=locked;}}
   }
-  function refreshMode(){toggle.setAttribute('aria-pressed',String(active));toggle.textContent=active?'Done annotating':'Annotate';root.classList.toggle('is-annotating',active);}
-  function describeTarget(){target.textContent=pending?.anchor?.kind==='text'?'“'+pending.anchor.quote+'”':pending?.anchor?.kind==='graph'?'Graph point: x ≈ '+((pending.anchor.x*20)-10).toFixed(1)+', y ≈ '+(10-pending.anchor.y*20).toFixed(1):'Step '+(pending.step+1);}
+  function refreshMode(){help.hidden=!active;toggle.setAttribute('aria-pressed',String(active));toggle.textContent=active?'Done annotating':'Annotate';root.classList.toggle('is-annotating',active);}
+  function describeTarget(){if(pending?.anchor?.kind==='text'){renderMathText(target,pending.anchor.quote);return;}target.textContent=pending?.anchor?.kind==='graph'?'Graph point: x ≈ '+((pending.anchor.x*20)-10).toFixed(1)+', y ≈ '+(10-pending.anchor.y*20).toFixed(1):'Step '+(pending.step+1);}
   function start(anchor,index=null){
     if(locked)return;
     if(pending!==null){message.textContent='Add or cancel your current comment before choosing another spot.';text.focus();return;}
@@ -112,7 +132,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
     if(locked||!pending)return;
     const value=text.value.trim();if(!value){message.textContent='Write a short comment first.';text.focus();return;}
     const note={...pending,text:value};if(editingIndex===null)notes.push(note);else notes[editingIndex]=note;
-    pending=null;editingIndex=null;composer.hidden=true;text.value='';onChange();renderNotes();toggle.focus();
+    pending=null;editingIndex=null;composer.hidden=true;text.value='';onChange();renderNotes();message.textContent='Comment added. Save draft to keep it.';message.tabIndex=-1;message.focus();
   }
   function renderPins(){
     pinLayer.replaceChildren();
@@ -126,8 +146,11 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
     noteList.replaceChildren();
     notes.forEach((note,index)=>{
       const item=element('li'),location=note.anchor?.kind==='graph'?'Graph':('Step '+(note.step+1));
-      item.append(element('strong',(index+1)+'. '+location));
-      if(note.anchor?.kind==='text')item.append(element('blockquote',note.anchor.quote));
+      const locationButton=button((index+1)+'. '+location,()=>{
+        if(note.anchor?.kind==='graph')graphWrap.scrollIntoView({block:'nearest'});
+        else{currentStep=note.step;showStep(true);}
+      });locationButton.className='comment-location';item.append(locationButton);
+      if(note.anchor?.kind==='text'){const quote=element('blockquote');renderMathText(quote,note.anchor.quote);item.append(quote);}
       item.append(element('p',note.text));
       if(!locked){item.append(button('Edit comment '+(index+1),()=>{const {text,...anchor}=note;start(anchor,index);}),button('Remove comment '+(index+1),()=>{
         if(pending){message.textContent='Add or cancel your current comment first.';return;}notes.splice(index,1);onChange();renderNotes();toggle.focus();
@@ -138,8 +161,7 @@ export function mountAnnotations(host,result,saved,{onChange,renderGraph}) {
     stepNodes.forEach(({content,mark},index)=>{
       const source=stepText(result.steps[index]);content.replaceChildren();
       const ranges=notes.flatMap(note=>note.step===index&&note.anchor?.kind==='text'?[note.anchor]:[]);
-      const boundaries=[...new Set([0,source.length,...ranges.flatMap(a=>[a.start,a.end])])].sort((a,b)=>a-b);
-      boundaries.slice(0,-1).forEach((start,i)=>{const end=boundaries[i+1],selected=ranges.some(a=>start>=a.start&&end<=a.end);content.append(selected?element('mark',source.slice(start,end)):document.createTextNode(source.slice(start,end)));});
+      renderMathText(content,source,{mathStart:result.steps[index].math?result.steps[index].explanation.length+1:null,ranges});
       const count=notes.filter(n=>n.step===index).length;mark.textContent='Comment on step '+(index+1)+(count?' · '+count:'');mark.disabled=locked;
     });renderPins();
   }

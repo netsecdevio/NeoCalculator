@@ -34,6 +34,7 @@ try {
     assert.match(font.family,/JetBrains Mono/);
     assert.equal(await page.locator('.brand img').evaluate(image=>image.naturalWidth),128);
     await page.locator('#expression').fill('y=2*x+12');
+    await page.locator('.calculator-tools summary').click();
     await page.getByRole('button',{name:'Graph',exact:true}).click();
     await page.locator('#graph').waitFor({state:'visible'});
     assert.deepEqual(await page.locator('#graph').evaluate(canvas=>Array.from(canvas.getContext('2d').getImageData(9,9,1,1).data)),colorScheme==='dark'?[12,20,32,255]:[255,255,255,255],'graph pixels follow the selected theme');

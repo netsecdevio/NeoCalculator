@@ -77,8 +77,14 @@ let styles = await readFile(join(sourceDir, "workspace.css"), "utf8");
 styles = styles.replace("./silas-theme.css", assets.theme.url);
 assets.styles = await asset("styles", "workspace.css",
   Buffer.from(styles), "text/css");
-for (const name of ['annotations','graph-view']) {
-  assets[name] = await asset(name, name+'.js', await readFile(join(sourceDir,name+'.js')), 'text/javascript');
+assets.katex = await asset('katex','katex.js',await readFile(join(sourceDir,'vendor/katex.mjs')),'text/javascript');
+assets.katexLicense = await asset('katexLicense','KaTeX-LICENSE.txt',await readFile(join(sourceDir,'vendor/KaTeX-LICENSE.txt')),'text/plain');
+assets.katexSource = await asset('katexSource','KaTeX-source.json',await readFile(join(sourceDir,'vendor/KaTeX-source.json')),'application/json');
+for (const name of ['math-text','source-callout','annotations','graph-view']) {
+  let module=await readFile(join(sourceDir,name+'.js'),'utf8');
+  module=module.replace('./vendor/katex.mjs',assets.katex.url);
+  for(const dependency of ['math-text','source-callout'])if(assets[dependency])module=module.replace('./'+dependency+'.js',assets[dependency].url);
+  assets[name] = await asset(name, name+'.js', Buffer.from(module), 'text/javascript');
 }
 let workspace = await readFile(join(sourceDir, "workspace.js"), "utf8");
 const manifestToken = sha256(Buffer.concat([

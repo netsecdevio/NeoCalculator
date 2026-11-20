@@ -131,3 +131,13 @@ button.annotation-source[aria-expanded="true"] { border-color: var(--silas-accen
 .source-locator { color: var(--silas-muted); font-size: 13px; }
 .rendered-math { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; padding: 3px 1px; font-size: 1.15em; }
 .math-highlight { background: var(--silas-soft); color: var(--silas-text); border-radius: 4px; text-decoration: underline; text-decoration-color: var(--silas-accent); text-decoration-thickness: 3px; }
+
+.step-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 8px; }
+.step-navigation p { flex: 1 0 100%; margin: 0 0 4px; color: var(--silas-muted); font-size: 14px; }
+.feedback .step-navigation button { margin: 0; }
+.step-navigation button:last-child { margin-left: auto; }
+.annotation-step h3:focus { outline: 2px solid var(--silas-focus); outline-offset: 4px; }
+.step-comment { display: none; }
+.is-annotating .step-comment { display: inline-flex; }
+.annotation-workspace:not(.is-annotating) .annotation-point-controls { display: none; }
+.comment-location { background: transparent; padding: 4px 8px; color: var(--silas-accent); }

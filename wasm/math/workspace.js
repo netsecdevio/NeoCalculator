@@ -8,9 +8,10 @@ const launchText = (key,limit) => (launch.get(key)||'').slice(0,limit);
 const lessonTitle=launchText('lessonTitle',160);
 const learningContext=document.querySelector('#learning-context');
 learningContext.value=launchText('context',3000);
+if(learningContext.value&&document.querySelector('#assignment-notes'))document.querySelector('#assignment-notes').open=true;
 input.value=launchText('problem',6000);
 const lessonHeading=document.querySelector('#lesson-context');
-lessonHeading.textContent=lessonTitle ? 'From your lesson: '+lessonTitle : 'Bring the question you are working on.';
+lessonHeading.textContent=lessonTitle ? 'From your lesson: '+lessonTitle : '';
 
 const status = document.querySelector('#status');
 const answer = document.querySelector('#answer');
@@ -28,13 +29,14 @@ async function explain() {
   if(!text){status.textContent='Enter a problem or describe what is confusing.';return;}
   clearExplanation();
   const version=explanationVersion,token=generation;
-  busy(true);status.textContent='Finding relevant sources and asking your teaching model…';
+  busy(true);status.textContent='Looking at your lesson notes and working through your question…';
   try {
     const result=await requestExplanation(text,learningContext.value,document.querySelector('#teaching-model').value,document.querySelector('#learning-class').value);
     if(token!==generation || version!==explanationVersion) return;
     if(!Array.isArray(result.steps)||!Array.isArray(result.sources))throw Error('The teaching response could not be read. Please try again.');
     mountFeedback(result);
-    status.textContent='Source-guided explanation · '+result.model+'. Check the reasoning as you work.';
+    if(openedEditors.has(result.outputId))focusEditor(openedEditors.get(result.outputId));
+    status.textContent='Let’s work through it. You can add a comment wherever you get stuck.';
   }catch(error){if(token===generation&&version===explanationVersion)status.textContent=error.message;}
   finally{if(token===generation)busy(false);}
 }
@@ -155,7 +157,7 @@ document.querySelector('.problem-context').before(classLabel,classSelect);
 const classNames=new Map();
 const className=id=>classNames.get(id)||'Your class';
 function updateClassContext(){
-  document.querySelector('#class-context').textContent=classSelect.value ? 'Working in '+className(classSelect.value) : 'Choose a linked class to save explanations.';
+  document.querySelector('#class-context').textContent=classSelect.value ? '' : 'Choose a linked class to save explanations.';
   document.querySelectorAll('[data-class-label]').forEach(element=>{element.textContent=className(element.dataset.classLabel);});
 }
 classSelect.addEventListener('change',()=>{clearExplanation();updateClassContext();});
@@ -197,7 +199,7 @@ const dirtyPanels=new Set();
 const openedEditors=new Map(),pendingReopens=new Set();
 const workEditors=document.createElement('div');workEditors.id='opened-work';
 explanation.after(workEditors);
-function focusEditor(editor){editor.scrollIntoView({block:'nearest'});(editor.querySelector('textarea:not(:disabled),select:not(:disabled),button:not(:disabled)')||editor).focus({preventScroll:true});}
+function focusEditor(editor){const heading=editor.querySelector('h2')||editor;heading.tabIndex=-1;editor.scrollIntoView({block:'start'});heading.focus({preventScroll:true});}
 window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
 function mountFeedback(result,saved=null,container=null){
   if(!result.outputId||!result.revision)return;
@@ -210,7 +212,7 @@ function mountFeedback(result,saved=null,container=null){
   const editorTitle=container.querySelector('h2');
   if(editorTitle){editorTitle.id='saved-output-title-'+result.outputId;container.setAttribute('aria-labelledby',editorTitle.id);}
   const panel=document.createElement('section');panel.className='feedback';
-  const heading=document.createElement('h2');heading.textContent='Your notes and work';
+  const heading=document.createElement('h2');heading.textContent='Work through the problem';
   const description=document.createElement('p');const label=document.createElement('span');label.dataset.classLabel=result.classId;label.textContent=className(result.classId);
   description.append(label,document.createTextNode(' · Notes stay attached to this explanation.'));
   panel.append(heading,description);
@@ -219,7 +221,7 @@ function mountFeedback(result,saved=null,container=null){
   let version=saved?.version||0,editing=0;
   const changed=()=>{dirtyPanels.add(panel);editing++;workStates.set(result.outputId,'Unsaved changes');updateHistoryState(result.outputId);};
   const annotations=mountAnnotations(panel,result,saved?.feedback,{
-    onChange:changed,
+    onChange:changed,sourcePreviews:saved?.sourcePreviews||[],
     async renderGraph(target,expression){
       if(!math&&mathLoad){
         let timer;
@@ -237,9 +239,12 @@ function mountFeedback(result,saved=null,container=null){
   const comment=field('What should we explain differently?',12000);
   const rating=document.createElement('select');rating.setAttribute('aria-label','How was this explanation?');
   for(const [value,label] of [['','Choose feedback'],['helpful','Helpful'],['confusing','Confusing'],['incorrect','I think something is incorrect']]){const option=document.createElement('option');option.value=value;option.textContent=label;rating.append(option);}
-  panel.append(rating);fields.push(rating);
+  const extraFeedback=document.createElement('details');extraFeedback.className='feedback-extra';
+  const extraSummary=document.createElement('summary');extraSummary.textContent='Tell us what helped or was confusing';
+  extraFeedback.append(extraSummary,comment.parentElement,rating);panel.append(extraFeedback);fields.push(rating);
   if(saved?.feedback){
     work.value=saved.feedback.work||'';comment.value=saved.feedback.comment||'';rating.value=saved.feedback.rating||'';
+    extraFeedback.open=Boolean(comment.value||rating.value);
   }
   panel.addEventListener('input',changed);
   const message=document.createElement('p');message.setAttribute('role','status');
