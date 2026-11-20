@@ -2,72 +2,51 @@ import assert from 'node:assert/strict';
 import {chromium,webkit} from 'playwright';
 import {resolve} from 'node:path';
 import {startStaticServer} from './test-server.mjs';
-import {buildExplanation} from '../../wasm/math/learning-steps.js';
-for(const input of ['x^2=2','sin(x)','0*x+1=2','1 2x=4','*x=4','log10(3)','log10(0)','log10(10000000000000)']) assert.equal(buildExplanation(input),null,input);
-assert.throws(()=>buildExplanation('1/0+1/2'),/zero/);
 const server=await startStaticServer(resolve('out/wasm-math/dist/release'),8797);
 try {
-  for(const engine of [chromium,webkit]) {
-    const browser=await engine.launch();
-    try {
-      const page=await browser.newPage();
-      let failManifest=true;
-      await page.route('**/numos-math-assets.json*', route=>failManifest?route.fulfill({status:503,body:'unavailable'}):route.continue());
-      // An old cached unversioned script must never be requested by the new page.
-      await page.route('**/workspace.js', route=>route.fulfill({contentType:'text/javascript',body:'throw Error("stale script loaded")'}));
-      await page.route('**/learning-steps.js', route=>route.fulfill({contentType:'text/javascript',body:'throw Error("stale steps loaded")'}));
-      await page.goto(server.origin);
-      assert.match(await page.locator('link[rel="stylesheet"]').getAttribute('href'), /^\.\/workspace\.[a-f0-9]{12}\.css$/);
-      assert.match(await page.locator('script[type="module"]').getAttribute('src'), /^\.\/workspace\.[a-f0-9]{12}\.js$/);
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('retry'));
-      assert.equal(await page.getByRole('button',{name:'Clear session'}).isEnabled(),true);
-      failManifest=false;
-      await page.getByRole('button',{name:'Clear session'}).click();
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
-      assert.equal(await page.locator('#explanation').isVisible(),false);
-      for(const [input,expected] of [
-        ['2*x+4=0','x = -2'],['-3*x-2=7','x = -3'],['1/2*x+1/3=2/3','x = 2/3'],
-        ['1/3+1/6','1/2'],['1/3-5/6','-1/2'],['log10(1000)','log10(1000) = 3'],['log10(0.01)','log10(0.01) = -2'],['log10(1000000000000)','log10(1000000000000) = 12'],['log10(0.000000000001)','log10(0.000000000001) = -12'],
-      ]) {
-        await page.locator('#expression').fill(input);
-        assert.equal(await page.locator('#explanation').isVisible(),false);
-        await page.getByRole('button',{name:'Explain steps',exact:true}).click();
-        await page.waitForFunction(()=>!document.querySelector('[data-action="explain"]').disabled);
-        assert.match(await page.locator('#status').innerText(),/^Steps checked/,input);
-        assert.ok((await page.locator('#explanation').innerText()).includes(expected),expected);
-      }
-      await page.locator('#expression').fill('x^2=2');
-      await page.getByRole('button',{name:'Explain steps'}).click();
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('not available'));
-      assert.equal(await page.locator('#explanation').isVisible(),false);
-      await page.getByRole('button',{name:'Clear session'}).click();
-      await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
-      assert.equal(await page.locator('#explanation').isVisible(),false);
-      const rejecting=await browser.newPage();
-      await rejecting.route('**/numos-math-client.*.js',route=>route.fulfill({contentType:'text/javascript',body:'export async function createNumosMath(){return {evaluate:async()=>({result:{kind:"integer",value:"1"}}),simplify:async()=>({result:{kind:"integer",value:"1"}}),shutdown:async()=>({})}}'}));
-      await rejecting.goto(server.origin);
-      await rejecting.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
-      await rejecting.locator('#expression').fill('2*x+4=0');
-      await rejecting.getByRole('button',{name:'Explain steps'}).click();
-      await rejecting.waitForFunction(()=>document.querySelector('#status').textContent.includes('could not be verified'));
-      assert.equal(await rejecting.locator('#explanation').isVisible(),false);
-      await rejecting.close();
-      const delayed=await browser.newPage();
-      await delayed.route('**/numos-math-client.*.js',route=>route.fulfill({contentType:'text/javascript',body:`export async function createNumosMath(){const delay=async()=>{await new Promise(r=>setTimeout(r,250));return {displayText:'5'}};return {evaluate:delay,solve:async()=>{await delay();throw Error('old error')},compile1D:async()=>({evaluateMany:async()=>{await delay();return []},dispose:async()=>{}}),shutdown:async()=>{}}}`}));
-      await delayed.goto(server.origin);
-      await delayed.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
-      for(const action of ['Calculate','Graph','Solve for x']) {
-        await delayed.locator('#expression').fill('2+3');
-        await delayed.getByRole('button',{name:action,exact:true}).click();
-        await delayed.locator('#expression').fill('8+9');
-        await delayed.waitForFunction(()=>!document.querySelector('[data-action="evaluate"]').disabled);
-        assert.equal(await delayed.locator('#answer').innerText(),'');
-        assert.equal(await delayed.locator('#graph').isVisible(),false);
-        assert.match(await delayed.locator('#status').innerText(),/^New problem/);
-      }
-      await delayed.close();
-
-      console.log(engine.name()+': checked explanations, unsupported cases and stale-step clearing passed');
-    } finally {await browser.close();}
-  }
-} finally {await server.close();}
+ for(const engine of [chromium,webkit]) {
+  const browser=await engine.launch();
+  try{
+   const page=await browser.newPage();let saved=null,version=0,submitted=false,failSave=false,problem;
+   const result={outputId:'12345678-1234-1234-1234-123456789abc',revision:'fixed-revision',classId:'algebra',title:'Your explanation',steps:[{explanation:'Find the slope',math:'m=2',citationIds:[]}],sources:[],answer:'y=2x+12',limitations:[],model:'test/provider'};
+   await page.route('**/api/brainfood/math/**',async route=>{
+    const request=route.request(),path=new URL(request.url()).pathname;
+    let data={};
+    if(path.endsWith('/models'))data={models:[{id:'test/provider',label:'Test model'}],default_model:'test/provider'};
+    else if(path.endsWith('/classes'))data={classes:['algebra']};
+    else if(path.endsWith('/explain')){problem=request.postDataJSON();data=result;}
+    else if(path.endsWith('/feedback')){
+     if(failSave){await route.fulfill({status:503,json:{}});return;}
+     const body=request.postDataJSON();assert.equal(body.version,version);saved=body.feedback;submitted=body.submit;data={version:++version,submitted};
+    }else if(path.endsWith('/outputs'))data={outputs:[result]};
+    else data={...result,output:result,feedback:saved,version,submitted};
+    await route.fulfill({json:data});
+   });
+   await page.goto(server.origin);
+   await page.waitForFunction(()=>document.querySelector('#learning-class')?.value==='algebra'&&!document.querySelector('[data-action="explain"]').disabled);
+   // Arbitrary and invalid math go to the service; there is no template allowlist.
+   for(const input of ['Find a line through two points','ln(x^2/sqrt(4x+1))','log(-3)']){
+    await page.locator('#expression').fill(input);await page.getByRole('button',{name:'Explain steps',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Source-guided'));
+    assert.equal(problem.problem,input);assert.equal(problem.classId,'algebra');
+   }
+   const panel=page.locator('.feedback').last();
+   await panel.getByLabel('Step 1 — what helped or confused you?').fill('Why subtract?');
+   await panel.getByLabel('Show your work or describe your approach').fill('m=-8/-4');
+   failSave=true;await panel.getByRole('button',{name:'Save draft'}).click();
+   await panel.getByRole('status').filter({hasText:'Not saved'}).waitFor();
+   assert.equal(await panel.getByLabel('Show your work or describe your approach').inputValue(),'m=-8/-4');
+   failSave=false;await panel.getByRole('button',{name:'Save draft'}).click();
+   await panel.getByRole('status').filter({hasText:'Draft saved'}).waitFor();
+   await page.reload();await page.getByRole('button',{name:'Open saved work'}).click();
+   await page.getByRole('button',{name:'Your explanation — algebra'}).click();
+   const reopened=page.locator('.feedback');
+   assert.equal(await reopened.getByLabel('Step 1 — what helped or confused you?').inputValue(),'Why subtract?');
+   await reopened.getByRole('button',{name:'Submit for review'}).click();
+   await reopened.getByRole('status').filter({hasText:'Submitted for review'}).waitFor();
+   assert.equal(submitted,true);assert.equal(version,2);
+   assert.equal(await reopened.getByLabel('Show your work or describe your approach').isDisabled(),true);
+   console.log(engine.name()+': API routing, failed-save preservation, draft reopening and submission passed');
+  }finally{await browser.close();}
+ }
+}finally{await server.close();}

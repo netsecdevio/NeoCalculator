@@ -78,6 +78,8 @@ if args.learning_workspace:
     launcher.unlink()  # The native shell now launches numos directly.
 for binary in [*copied.values(), exe]:
     subprocess.run(["codesign", "--force", "--sign", "-", str(binary)], check=True)
+if args.learning_workspace:
+    subprocess.run(["codesign", "--force", "--sign", "-", str(desktop)], check=True)
 subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True)
 subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
 print(app)

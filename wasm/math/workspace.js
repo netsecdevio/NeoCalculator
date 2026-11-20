@@ -1,4 +1,4 @@
-import {loadModels,requestExplanation,loadClasses,saveFeedback} from './learning-steps.js';
+import {loadModels,requestExplanation,loadClasses,saveFeedback,loadOutputs,loadOutput} from './learning-steps.js';
 const input = document.querySelector('#expression');
 const status = document.querySelector('#status');
 const answer = document.querySelector('#answer');
@@ -147,7 +147,7 @@ input.before(classLabel,classSelect);
 loadClasses().then(data=>{for(const id of data.classes){const option=document.createElement('option');option.value=id;option.textContent=id;classSelect.append(option);}if(!data.classes.length)status.textContent='No class is linked to this account yet.';}).catch(error=>{status.textContent=error.message;});
 const dirtyPanels=new Set();
 window.addEventListener('beforeunload',event=>{if(dirtyPanels.size){event.preventDefault();event.returnValue='';}});
-function mountFeedback(result){
+function mountFeedback(result,saved=null){
   if(!result.outputId||!result.revision)return;
   const panel=document.createElement('section');panel.className='feedback';
   const heading=document.createElement('h2');heading.textContent='Your notes and work';
@@ -161,20 +161,49 @@ function mountFeedback(result){
   const rating=document.createElement('select');rating.setAttribute('aria-label','How was this explanation?');
   for(const [value,label] of [['','Choose feedback'],['helpful','Helpful'],['confusing','Confusing'],['incorrect','I think something is incorrect']]){const option=document.createElement('option');option.value=value;option.textContent=label;rating.append(option);}
   panel.append(rating);fields.push(rating);
-  let version=0,editing=0;panel.addEventListener('input',()=>{dirtyPanels.add(panel);editing++;});
+  if(saved?.feedback){
+    for(const note of saved.feedback.annotations||[])if(annotations[note.step])annotations[note.step].value=note.text;
+    work.value=saved.feedback.work||'';comment.value=saved.feedback.comment||'';rating.value=saved.feedback.rating||'';
+  }
+  let version=saved?.version||0,editing=0;panel.addEventListener('input',()=>{dirtyPanels.add(panel);editing++;});
   const message=document.createElement('p');message.setAttribute('role','status');
   const draft=document.createElement('button'),submit=document.createElement('button');draft.textContent='Save draft';submit.textContent='Submit for review';
   async function send(submitted){
-    draft.disabled=submit.disabled=true;const snapshot=editing;
+    draft.disabled=submit.disabled=true;fields.forEach(f=>f.disabled=true);const snapshot=editing;
     try{
       const response=await saveFeedback(result.outputId,{revision:result.revision,version,submit:submitted,feedback:{annotations:annotations.flatMap((n,i)=>n.value.trim()?[{step:i,text:n.value.trim()}]:[]),work:work.value,comment:comment.value,rating:rating.value}});
       version=response.version;if(editing===snapshot)dirtyPanels.delete(panel);
       message.textContent=response.submitted?'Submitted for review.':'Draft saved.';
       if(response.submitted){fields.forEach(f=>f.disabled=true);return;}
     }catch(error){message.textContent='Not saved. Your notes are still here. '+error.message;}
-    draft.disabled=submit.disabled=false;
+    draft.disabled=submit.disabled=false;fields.forEach(f=>f.disabled=false);
   }
   draft.onclick=()=>send(false);submit.onclick=()=>send(true);panel.append(draft,submit,message);
   // Keep prior work visible even when another explanation is requested.
+  if(saved?.submitted){fields.forEach(f=>f.disabled=true);draft.disabled=submit.disabled=true;message.textContent='Submitted for review.';}
   explanation.after(panel);
 }
+
+const reopen=document.createElement('button');reopen.textContent='Open saved work';
+const savedList=document.createElement('div');savedList.setAttribute('aria-live','polite');
+classSelect.after(reopen,savedList);
+reopen.onclick=async()=>{
+  savedList.replaceChildren();
+  try{
+    const {outputs}=await loadOutputs();
+    if(!outputs.length)savedList.textContent='No saved explanations yet.';
+    for(const item of outputs){
+      const button=document.createElement('button');button.textContent=item.title+' — '+item.classId;
+      button.onclick=async()=>{
+        try{
+          const saved=await loadOutput(item.outputId);
+          const panel=document.createElement('section');const h=document.createElement('h2');h.textContent=saved.output.title;
+          panel.append(h);
+          for(const step of saved.output.steps){const text=document.createElement('p');text.textContent=step.explanation+' '+(step.math||'');panel.append(text);}
+          savedList.append(panel);mountFeedback({...saved.output,...item},saved);button.disabled=true;
+        }catch(error){status.textContent=error.message;}
+      };
+      savedList.append(button);
+    }
+  }catch(error){savedList.textContent=error.message;}
+};

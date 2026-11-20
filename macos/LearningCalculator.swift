@@ -29,6 +29,7 @@ final class NoRedirect:NSObject,URLSessionTaskDelegate {
     func urlSession(_ session:URLSession,task:URLSessionTask,willPerformHTTPRedirection response:HTTPURLResponse,newRequest request:URLRequest,completionHandler:@escaping(URLRequest?)->Void){completionHandler(nil)}
 }
 final class LocalCalculatorServer {
+    let capability=UUID().uuidString+UUID().uuidString
     let session=URLSession(configuration:.ephemeral,delegate:NoRedirect(),delegateQueue:nil)
     let queue=DispatchQueue(label:"calculator.http")
     let root:URL
@@ -80,9 +81,10 @@ final class LocalCalculatorServer {
     func handle(_ c:NWConnection,_ method:String,_ target:String,_ headers:[String:String],_ body:Data) {
         let origin="http://127.0.0.1:\(port)"
         guard headers["host"]=="127.0.0.1:\(port)",let path=URLComponents(string:target)?.path else{reply(c,403,"text/plain",Data());return}
-        let isRead = path=="/api/brainfood/math/models" || path=="/api/brainfood/math/classes"
+        let isRead = path=="/api/brainfood/math/models" || path=="/api/brainfood/math/classes" || path=="/api/brainfood/math/outputs" || path.range(of:"^/api/brainfood/math/outputs/[0-9a-f-]{36}$",options:.regularExpression) != nil
         let isWrite = path=="/api/brainfood/math/explain" || path.range(of:"^/api/brainfood/math/outputs/[0-9a-f-]{36}/feedback$",options:.regularExpression) != nil
         if isRead || isWrite {
+            guard headers["x-calculator-capability"]==capability else{reply(c,403,"application/json",Data("{}".utf8));return}
             guard (isRead && method=="GET") || (isWrite && method=="POST" && headers["origin"]==origin) else{reply(c,403,"application/json",Data("{}".utf8));return}
             guard let token=deviceToken() else{reply(c,401,"application/json",Data("{}".utf8));return}
             var request=URLRequest(url:URL(string:"https://brainfood.silas-ai.io"+path)!)
@@ -114,7 +116,12 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
             server=try LocalCalculatorServer(root:resources.appendingPathComponent("calculator"))
             window=NSWindow(contentRect:NSRect(x:0,y:0,width:1050,height:850),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
             window.title="NeoCalculator — Learning Workspace";window.center()
-            let view=WKWebView(frame:window.contentView!.bounds);view.autoresizingMask=[.width,.height];view.navigationDelegate=self;window.contentView=view
+            let config=WKWebViewConfiguration()
+            let script="""
+            (()=>{const original=window.fetch.bind(window);const capability='\(server.capability)';window.fetch=(input,options={})=>{const url=new URL(typeof input==='string'?input:input.url,location.href);if(url.origin===location.origin&&url.pathname.startsWith('/api/brainfood/math/')){const headers=new Headers(options.headers||{});headers.set('X-Calculator-Capability',capability);return original(input,{...options,headers});}return original(input,options);};})();
+            """
+            config.userContentController.addUserScript(WKUserScript(source:script,injectionTime:.atDocumentStart,forMainFrameOnly:true))
+            let view=WKWebView(frame:window.contentView!.bounds,configuration:config);view.autoresizingMask=[.width,.height];view.navigationDelegate=self;window.contentView=view
             let bar=NSMenu();let item=NSMenuItem();let menu=NSMenu();menu.addItem(withTitle:"Open calculator emulator",action:#selector(openEmulator),keyEquivalent:"e");menu.addItem(.separator());menu.addItem(withTitle:"Quit NeoCalculator",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q");item.submenu=menu;bar.addItem(item);NSApp.mainMenu=bar
             try server.start{url in self.localHost=url.absoluteString.replacingOccurrences(of:"/index.html",with:"");view.load(URLRequest(url:url))}
             window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
