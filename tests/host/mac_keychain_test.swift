@@ -60,6 +60,7 @@ struct KeychainTests {
             saved.signal()
         }
         precondition(saved.wait(timeout: .now()+1) == .success && writes == 2)
+        testWorkspaceRecovery()
         testHTTPServer()
         print("PASS: blocked Keychain leaves caller responsive, deadlines complete once, workers stay bounded, credentials survive and explicit retry succeeds")
     }
@@ -95,4 +96,35 @@ func testHTTPServer() {
     // Both responses arrived while Security remained blocked. URLSession is
     // free to deliver independent completions in either order.
     precondition(Set(status) == Set([200,503]), "A blocked Keychain request delayed real static HTTP")
+}
+
+
+private final class RecoveryTestApp:CalculatorApp {
+    var reloads=0,confirmations=0,approve=false,messages=[String]()
+    override func reloadWorkspace(){reloads += 1}
+    override func confirmConnectionReload(_ completion:@escaping(Bool)->Void){confirmations += 1;completion(approve)}
+    override func connectionMessage(_ title:String,_ detail:String){messages.append(title+" "+detail)}
+}
+private func testWorkspaceRecovery(){
+    var writes=0
+    let app=RecoveryTestApp(credentials:KeychainConnection { token,interactive in
+        precondition(interactive)
+        if token != nil {writes += 1}
+        return .success(token ?? "saved-synthetic-token")
+    })
+    func settle(){
+        let end=Date().addingTimeInterval(2)
+        while app.pairingInFlight && Date()<end{RunLoop.current.run(until:Date().addingTimeInterval(0.01))}
+        precondition(!app.pairingInFlight)
+    }
+    app.unlockConnection();settle()
+    precondition(app.reloads==0 && writes==0 && app.messages.last!.contains("Retry classes"),"Unlock must preserve open notes")
+    app.pendingToken="new-synthetic-token"
+    app.retryConnectionSave();settle()
+    precondition(app.confirmations==1 && app.reloads==0 && writes==0 && app.pendingToken != nil,"Cancel must preserve pending connection and work")
+    app.unlockConnection();settle()
+    precondition(app.confirmations==2 && app.reloads==0 && writes==0,"Unlock must not bypass a pending-save confirmation")
+    app.approve=true;app.retryConnectionSave();settle()
+    precondition(app.confirmations==3 && writes==1 && app.reloads==1 && app.pendingToken==nil,"Only a confirmed retry may save and reload")
+    print("PASS: unlock preserves workspace; cancelled retry and pending unlock cannot save/reload; confirmed retry succeeds")
 }
