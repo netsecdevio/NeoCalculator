@@ -92,5 +92,7 @@ func testHTTPServer() {
     let end=Date().addingTimeInterval(3)
     while status.count<2 && Date()<end { RunLoop.current.run(until:Date().addingTimeInterval(0.01)) }
     release.signal();server.listener?.cancel()
-    precondition(status == [200,503], "A blocked Keychain request delayed real static HTTP")
+    // Both responses arrived while Security remained blocked. URLSession is
+    // free to deliver independent completions in either order.
+    precondition(Set(status) == Set([200,503]), "A blocked Keychain request delayed real static HTTP")
 }

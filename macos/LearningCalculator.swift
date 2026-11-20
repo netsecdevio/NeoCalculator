@@ -210,6 +210,19 @@ final class CalculatorApp:NSObject,NSApplicationDelegate,WKNavigationDelegate {
 @main
 struct LearningCalculator {
     static func main() {
+        if CommandLine.arguments.contains("--connection-status") {
+            let signal=DispatchSemaphore(value:0);let connection=KeychainConnection()
+            connection.read { result in
+                let status:[String:Any]
+                switch result {
+                case .success:status=["connected":true]
+                case .failure(let failure):status=["connected":false,"action":failure.message]
+                }
+                if let data=try? JSONSerialization.data(withJSONObject:status){FileHandle.standardOutput.write(data);FileHandle.standardOutput.write(Data("\n".utf8))}
+                signal.signal()
+            }
+            signal.wait();return
+        }
         if CommandLine.arguments.contains("--configure-device") {
             let data=FileHandle.standardInput.readDataToEndOfFile()
             guard data.count<8192,let config=try? JSONSerialization.jsonObject(with:data) as? [String:String],let token=config["device_token"],!token.isEmpty,token.count<4096 else{exit(1)}

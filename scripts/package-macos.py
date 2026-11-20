@@ -62,14 +62,23 @@ while queue:
         dependency = line.strip().split(" (", 1)[0]
         if dependency.startswith(("/System/Library/", "/usr/lib/")) or dependency == str(target):
             continue
-        if not dependency.startswith("/"):
-            if dependency.startswith("@"):
-                continue
-            raise SystemExit("Unresolved native dependency: " + dependency)
-        allowed = ("/opt/homebrew/", "/usr/local/") + ((str(args.dependency_prefix.resolve()) + "/",) if args.dependency_prefix else ())
-        if not dependency.startswith(allowed):
-            raise SystemExit("Native dependency needs an explicit --dependency-prefix: " + dependency)
-        source = Path(dependency).resolve()
+        if dependency.startswith("@rpath/"):
+            name = dependency.removeprefix("@rpath/")
+            if not args.dependency_prefix or Path(name).name != name:
+                raise SystemExit("Resolve @rpath dependencies with --dependency-prefix: " + dependency)
+            source = (args.dependency_prefix.resolve() / "lib" / name).resolve()
+            if not source.is_file() or not source.is_relative_to(args.dependency_prefix.resolve()):
+                raise SystemExit("Missing isolated native dependency: " + dependency)
+        elif dependency.startswith("@executable_path/../Frameworks/"):
+            name = dependency.removeprefix("@executable_path/../Frameworks/")
+            if Path(name).name != name or not (frameworks / name).is_file():
+                raise SystemExit("Missing bundled native dependency: " + dependency)
+            continue
+        else:
+            allowed = ("/opt/homebrew/", "/usr/local/") + ((str(args.dependency_prefix.resolve()) + "/",) if args.dependency_prefix else ())
+            if not dependency.startswith(allowed):
+                raise SystemExit("Native dependency needs an explicit --dependency-prefix: " + dependency)
+            source = Path(dependency).resolve()
         bundled = frameworks / source.name
         if source not in copied:
             if bundled.exists():
