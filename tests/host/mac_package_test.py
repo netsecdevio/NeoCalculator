@@ -17,9 +17,12 @@ with tempfile.TemporaryDirectory(prefix="silascalc-package-test-") as folder:
         slices = []
         for arch in ("arm64", "x86_64"):
             target = root / (arch + name)
-            run("clang", "-arch", arch, "-mmacosx-version-min=13.0", "-dynamiclib", root / "library.c", "-Wl,-install_name,@rpath/" + name, "-o", target)
+            run("clang", "-arch", arch, "-mmacosx-version-min=13.0", "-dynamiclib", root / "library.c", "-Wl,-headerpad_max_install_names", "-Wl,-install_name,@rpath/" + ("libSDL3.0.dylib" if name == "libSDL3.dylib" else name), *(["-L" + str(prefix / "lib"), "-lSDL3"] if name == "libSDL2.dylib" else []), "-o", target)
             slices.append(target)
         run("lipo", "-create", *slices, "-output", prefix / "lib" / name)
+        if name == "libSDL3.dylib":
+            (prefix / "lib" / name).rename(prefix / "lib/libSDL3.0.dylib")
+            (prefix / "lib" / name).symlink_to("libSDL3.0.dylib")
     slices = []
     for arch in ("arm64", "x86_64"):
         target = root / arch
@@ -37,6 +40,8 @@ with tempfile.TemporaryDirectory(prefix="silascalc-package-test-") as folder:
         for library in (app / "Contents/Frameworks").iterdir():
             links = subprocess.check_output(["otool", "-arch", arch, "-L", str(library)], text=True)
             assert "@rpath" not in links and str(prefix) not in links, (arch, library)
+            assert "libSDL3.0.dylib" not in links, (arch, library)
+            if library.name == "libSDL2.dylib": assert "@executable_path/../Frameworks/libSDL3.dylib" in links
         # Inspect both slices everywhere; execute both when Rosetta is available.
         available = subprocess.run(["arch", "-" + arch, "/usr/bin/true"], capture_output=True).returncode == 0
         if available: run("arch", "-" + arch, executable)
