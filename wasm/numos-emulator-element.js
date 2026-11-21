@@ -293,7 +293,7 @@ export class NumosEmulatorElement extends HTMLElement {
   get ready() { return this.#readyDeferred.promise; }
   get calculatorStyle() { return this.#calculatorStyle; }
   set calculatorStyle(style) {
-    if (!Object.hasOwn(SILAS_CALCULATOR_LAYOUTS, style)) return;
+    if (!Object.prototype.hasOwnProperty.call(SILAS_CALCULATOR_LAYOUTS, style)) return;
     const enabled = this.#inputEnabled;
     this.#releaseAllInput();
     this.#calculatorStyle = style;

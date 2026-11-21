@@ -100,12 +100,12 @@ button:focus-visible, canvas:focus-visible, summary:focus-visible {
 [data-action="restart"] {
   border-color: #aebdd2;
   background: var(--numos-accent-soft);
-  color: #204e8b;
+  color: var(--numos-text);
 }
 [data-action="power"] {
   border-color: #b9b8b2;
   background: #35445b;
-  color: #3d4045;
+  color: var(--numos-text);
 }
 
 .content {

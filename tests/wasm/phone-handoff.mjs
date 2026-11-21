@@ -62,6 +62,41 @@ try {
       await frame.getByRole("status").waitFor({ state: "visible" });
       assert.equal(await address.isVisible(), true);
       assert.deepEqual(external, [], "embedded fallback must remain local and credential-free");
+      const pageErrors = [];
+      page.on("pageerror", error => pageErrors.push(error.message));
+      // Older embedded webviews may lack UUID and some or all native dialog APIs.
+      for (const missing of ["uuid", "constructor", "showModal", "close", "all"]) {
+        const compatibility = await browser.newPage({ viewport: { width: 390, height: 844 } });
+        compatibility.on("pageerror", error => pageErrors.push(error.message));
+        await compatibility.addInitScript(mode => {
+          Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
+          if (mode === "showModal" || mode === "all") Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: undefined });
+          if (mode === "close" || mode === "all") Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: undefined });
+          if (mode === "constructor" || mode === "all") Object.defineProperty(window, "HTMLDialogElement", { configurable: true, value: undefined });
+        }, missing);
+        await compatibility.route("**/compatibility-phone.html", route => route.fulfill({
+          contentType: "text/html",
+          body: '<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script type="module">import {createPhoneHandoff} from "./numos-phone.js";document.body.append(createPhoneHandoff(()=>"scientific"));</script></body></html>',
+        }));
+        await compatibility.goto(server.origin + "/compatibility-phone.html");
+        const launch = compatibility.getByRole("button", { name: "Open on my phone", exact: true });
+        await launch.waitFor();
+        const panel = compatibility.locator(".phone-handoff-dialog");
+        assert.equal(await panel.isVisible(), false);
+        await launch.click();
+        assert.equal(await panel.isVisible(), true);
+        assert.equal(await panel.evaluate(node => node.tagName), missing === "uuid" ? "DIALOG" : "SECTION");
+        assert.equal(await compatibility.getByRole("textbox", { name: "Calculator address" }).inputValue(), expected.replace("style=silas", "style=scientific"));
+        await compatibility.waitForFunction(() => document.querySelector(".phone-handoff-dialog img").naturalWidth > 0);
+        await compatibility.getByRole("button", { name: "Done", exact: true }).click();
+        assert.equal(await panel.isVisible(), false);
+        assert.equal(await launch.evaluate(button => document.activeElement === button), true);
+        await launch.click();
+        await compatibility.getByRole("textbox", { name: "Calculator address" }).press("Escape");
+        assert.equal(await panel.isVisible(), false);
+        await compatibility.close();
+      }
+      assert.deepEqual(pageErrors, [], "optional APIs must not break calculator construction or handoff");
       console.log(engine.name() + ": style allowlist, local QR assets, mobile fit, focus, fallback and zero external requests passed");
     } finally { await browser.close(); }
   }

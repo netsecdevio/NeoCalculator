@@ -1,4 +1,5 @@
 /** Public calculator handoff only; no pairing, learner identity or work transfer. */
+let nextHandoffId = 0;
 const STYLES = new Set(["silas", "graphing", "scientific"]);
 const QR_IMAGES = {
   silas: new URL("./phone/qr-silas.png", import.meta.url).href,
@@ -16,10 +17,17 @@ export function createPhoneHandoff(getStyle = () => "silas") {
   button.type = "button";
   button.textContent = "Open on my phone";
   button.className = "phone-handoff-button";
-  const dialog = document.createElement("dialog");
+  const candidate = document.createElement("dialog");
+  const supportsDialog = typeof HTMLDialogElement !== "undefined"
+    && typeof candidate.showModal === "function" && typeof candidate.close === "function";
+  const dialog = supportsDialog ? candidate : document.createElement("section");
+  if (!supportsDialog) {
+    dialog.hidden = true;
+    dialog.setAttribute("role", "region");
+  }
   dialog.className = "phone-handoff-dialog";
   const title = document.createElement("h2");
-  title.id = "phone-handoff-" + crypto.randomUUID();
+  title.id = "phone-handoff-" + (++nextHandoffId);
   title.textContent = "Open on my phone";
   dialog.setAttribute("aria-labelledby", title.id);
   const help = document.createElement("p");
@@ -53,7 +61,14 @@ export function createPhoneHandoff(getStyle = () => "silas") {
   const close = document.createElement("button");
   close.type = "button";
   close.textContent = "Done";
-  close.addEventListener("click", () => dialog.close());
+  const closePanel = () => {
+    if (supportsDialog) dialog.close();
+    else { dialog.hidden = true; button.focus(); }
+  };
+  close.addEventListener("click", closePanel);
+  if (!supportsDialog) dialog.addEventListener("keydown", event => {
+    if (event.key === "Escape") { event.preventDefault(); closePanel(); }
+  });
   dialog.addEventListener("close", () => button.focus());
   button.addEventListener("click", () => {
     const requested = getStyle();
@@ -65,12 +80,19 @@ export function createPhoneHandoff(getStyle = () => "silas") {
     link.href = phoneCalculatorUrl(selected);
     address.value = link.href;
     error.hidden = true;
-    if (!dialog.open) dialog.showModal();
+    if (supportsDialog) {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      dialog.hidden = false;
+      address.focus();
+    }
   });
   dialog.append(title, help, instruction, qr, link, error, addressLabel, close);
   const css = document.createElement("style");
   css.textContent = `
     .phone-handoff-dialog { color:#f5f7fb; background:#111b29; border:1px solid #8194ab; border-radius:16px; max-width:min(380px,calc(100vw - 48px)); padding:24px; box-sizing:border-box; text-align:center; }
+    .phone-handoff-dialog[hidden] { display:none; }
+    section.phone-handoff-dialog { margin:16px auto; }
     .phone-handoff-dialog::backdrop { background:rgba(3,8,15,.78); }
     .phone-handoff-dialog h2 { margin:0 0 12px; font-size:1.3rem; }
     .phone-handoff-dialog p { line-height:1.5; }
