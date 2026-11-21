@@ -20,7 +20,7 @@ const delay = (milliseconds) => new Promise((resolve) =>
 async function waitForServer() {
   for (let attempt = 0; attempt < 100; ++attempt) {
     try {
-      const response = await fetch(`${origin}/index.html`);
+      const response = await fetch(`${origin}/index.html?start=launcher`);
       if (response.ok) return;
     } catch {}
     await delay(50);
@@ -134,7 +134,7 @@ try {
 
   // In this fresh browser context, disabled persistence must reject reset
   // rather than opening or deleting the shared NumOS database.
-  await reloadReady(`${origin}/index.html?persistence=disabled`);
+  await reloadReady(`${origin}/index.html?start=launcher&persistence=disabled`);
   assert.equal((await persistenceState()).state, "disabled");
   await assert.rejects(
     page.evaluate(async () => window.numos.resetPersistentStorage()),
@@ -142,7 +142,7 @@ try {
   await page.evaluate(async () => window.numos.requestShutdown());
 
   // First run: hydration precedes C++ main and reports the empty schema.
-  const firstLaunch = await reloadReady(`${origin}/index.html`);
+  const firstLaunch = await reloadReady(`${origin}/index.html?start=launcher`);
   phase = "first-run-writes";
   assert.equal(firstLaunch.ready.ready, true);
   assert.equal(firstLaunch.ready.persistence.state, "persistent_ready");
@@ -273,7 +273,7 @@ try {
 
   // Dirty shutdown awaits the write and a final post-teardown flush.
   phase = "dirty-shutdown";
-  await reloadReady(`${origin}/index.html`);
+  await reloadReady(`${origin}/index.html?start=launcher`);
   await openApp(10, "Settings");
   await page.keyboard.press("Enter"); // RAD -> DEG, dirty
   await page.waitForFunction(() =>
@@ -281,13 +281,13 @@ try {
   assert.equal((await persistenceState()).dirty, true);
   await page.evaluate(async () => window.numos.requestShutdown());
   await page.waitForFunction(() => !window.numos.isReady());
-  await reloadReady(`${origin}/index.html`);
+  await reloadReady(`${origin}/index.html?start=launcher`);
   assert.equal((await diagnostics()).storage.angleMode, "deg");
 
   // Inject one flush failure. It is reported as persistent_error, leaves the
   // emulator running, and a subsequent edit saves without an explicit flush.
   phase = "flush-failure";
-  await reloadReady(`${origin}/index.html?persistenceTest=flush-failure`);
+  await reloadReady(`${origin}/index.html?start=launcher&persistenceTest=flush-failure`);
   await openApp(10, "Settings");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() =>
@@ -314,7 +314,7 @@ try {
   // IndexedDB denial and initial sync failure both launch on ordinary MEMFS.
   phase = "indexeddb-denied";
   const denied = await reloadReady(
-    `${origin}/index.html?persistenceTest=indexeddb-denied`);
+    `${origin}/index.html?start=launcher&persistenceTest=indexeddb-denied`);
   assert.equal(denied.ready.ready, true);
   assert.equal(denied.ready.persistence.state, "ephemeral_fallback");
   assert.equal(denied.ready.persistence.mode, "ephemeral");
@@ -325,7 +325,7 @@ try {
     window.numos.diagnosticState().calculation.exact === "4");
 
   const failedHydration = await reloadReady(
-    `${origin}/index.html?persistenceTest=hydrate-failure`);
+    `${origin}/index.html?start=launcher&persistenceTest=hydrate-failure`);
   phase = "hydrate-failure";
   assert.equal(failedHydration.ready.ready, true);
   assert.equal(failedHydration.ready.persistence.state, "ephemeral_fallback");
@@ -334,7 +334,7 @@ try {
 
   // Explicit reset clears only /numos. A normal reload is a clean first run.
   phase = "explicit-reset";
-  await reloadReady(`${origin}/index.html`);
+  await reloadReady(`${origin}/index.html?start=launcher`);
   const resetReady = await page.evaluate(async () =>
     window.numos.resetPersistentStorage());
   assert.equal(resetReady.persistence.metadataStatus, "first_run");
@@ -342,7 +342,7 @@ try {
   state = await diagnostics();
   assert.equal(state.storage.angleMode, "rad");
   assert.equal(state.storage.variableX, "0");
-  const cleanReload = await reloadReady(`${origin}/index.html`);
+  const cleanReload = await reloadReady(`${origin}/index.html?start=launcher`);
   phase = "clean-first-run-verification";
   state = await diagnostics();
   assert.equal(cleanReload.ready.persistence.metadataStatus, "current");

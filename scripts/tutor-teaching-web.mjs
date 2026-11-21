@@ -21,10 +21,10 @@ assert.equal(manifest.assets.wasm.sha256,rawHash,'package the freshly compiled W
 const server=spawn('python',['-m','http.server',String(port),'--bind','127.0.0.1','--directory',resolve(snapshot,'out/wasm/dist/release')],{stdio:'ignore',windowsHide:true});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));let browser,page,canvas;
 try{
-  for(let i=0;i<100;++i){try{if((await fetch(origin+'/index.html')).ok)break;}catch{}await delay(50);}
+  for(let i=0;i<100;++i){try{if((await fetch(origin+'/index.html?start=launcher')).ok)break;}catch{}await delay(50);}
   browser=await browserType.launch({headless:true});page=await browser.newPage({viewport:{width:900,height:720}});
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
-  await page.goto(origin+'/index.html?persistence=disabled');
+  await page.goto(origin+'/index.html?start=launcher&persistence=disabled');
   await page.waitForFunction(()=>window.numos?.isReady(),null,{timeout:30000});
   canvas=page.locator('numos-emulator').locator('canvas');const box=await canvas.boundingBox();
   let focusApp;

@@ -26,7 +26,8 @@ if (!globalThis.customElements) {
   // The student entry opens as a calculator, not an operating-system launcher.
   // HOME still exposes graphing and the other engine tools.
   emulator.addEventListener("numos-ready", () => {
-    if (emulator.diagnosticState()?.app === "Menu") emulator.pressLogicalKey(48);
+    if (parameters.get("start") !== "launcher" &&
+        emulator.diagnosticState()?.app === "Menu") emulator.pressLogicalKey(48);
   });
 
   const api = Object.freeze({

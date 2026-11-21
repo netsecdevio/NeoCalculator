@@ -16,7 +16,7 @@ try {for(const [name,type] of Object.entries({chromium,firefox,webkit})) {
   page.on('pageerror',e=>errors.push(String(e)));
   const folder=resolve(out,name,surface);await mkdir(folder,{recursive:true});
   const boot=async()=>{
-   await page.goto(server.origin+(surface==='shell'?'/index.html':'/fixture.html'));
+   await page.goto(server.origin+(surface==='shell'?'/index.html?start=launcher':'/fixture.html'));
    if(surface==='component') {
     await page.waitForFunction(()=>customElements.get('numos-emulator'));
     await page.evaluate(()=>{const e=document.createElement('numos-emulator');e.setAttribute('controls','');document.body.append(e);});

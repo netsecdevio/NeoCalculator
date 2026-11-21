@@ -101,6 +101,19 @@ try {
       assert.equal(await phonePage.locator('numos-emulator').getByLabel('Calculator style', { exact: true }).inputValue(), 'scientific');
       assert.equal(await phonePage.evaluate(() => window.numos.persistenceState().state), 'disabled');
       await phonePage.close();
+      const launcherPage = await browser.newPage({ viewport: { width: 560, height: 820 } });
+      await launcherPage.goto(`${server.origin}/index.html?persistence=disabled&start=launcher`);
+      await launcherPage.waitForFunction(() => window.numos?.isReady());
+      assert.equal(await launcherPage.evaluate(() => window.numos.diagnosticState().app), 'Menu');
+      // Preserve the actual legacy equation-card workflow, including its coordinates.
+      const launcherCanvas = launcherPage.locator('numos-emulator').locator('canvas');
+      const launcherBox = await launcherCanvas.boundingBox();
+      await launcherCanvas.click({ position: { x: 255 * launcherBox.width / 320, y: 72 * launcherBox.height / 240 }, delay: 40 });
+      await launcherPage.waitForFunction(() => window.numos.diagnosticState().app === 'Equations');
+      await launcherPage.evaluate(() => window.numos.restart());
+      await launcherPage.waitForFunction(() => window.numos?.isReady());
+      assert.equal(await launcherPage.evaluate(() => window.numos.diagnosticState().app), 'Menu');
+      await launcherPage.close();
       if (process.env.SILASCALC_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SILASCALC_SCREENSHOT_DIR}/silascalc-student-${engine.name()}.png`, fullPage: true });
       assert.deepEqual(missingAssets, [], 'the served package contains every runtime/image dependency');
       assert.deepEqual(pageErrors, [], 'the standalone module graph loads without uncaught errors');

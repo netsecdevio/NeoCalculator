@@ -19,10 +19,10 @@ const server=spawn("python",["-m","http.server","8796","--bind","127.0.0.1","--d
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 let browser;
 try {
-  for(let attempt=0;attempt<100;++attempt){try{if((await fetch("http://127.0.0.1:8796/index.html")).ok)break;}catch{}await delay(50);}
+  for(let attempt=0;attempt<100;++attempt){try{if((await fetch("http://127.0.0.1:8796/index.html?start=launcher")).ok)break;}catch{}await delay(50);}
   browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:900,height:720}});
   const errors=[];page.on("pageerror",e=>errors.push(String(e)));
-  await page.goto("http://127.0.0.1:8796/index.html?persistence=disabled");
+  await page.goto("http://127.0.0.1:8796/index.html?start=launcher&persistence=disabled");
   await page.waitForFunction(()=>window.numos?.isReady(),null,{timeout:30000});
   const canvas=page.locator("numos-emulator").locator("canvas");
   const box=await canvas.boundingBox();await canvas.click({position:{x:255*box.width/320,y:72*box.height/240},delay:40});

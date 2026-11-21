@@ -98,7 +98,10 @@ intermediates only and are not browser entry points:
 python3 -m http.server 8000 --directory out/wasm/dist/release
 ```
 
-Then open `http://127.0.0.1:8000/`.
+Then open `http://127.0.0.1:8000/`. The student entry opens Calculation.
+Developer workflows that start from launcher cards use `?start=launcher`;
+that choice also persists across restarts within the page. HOME always opens
+the launcher from the student calculator.
 
 The release build uses `-O2`; debug uses `-O0`, Emscripten assertions, Safe
 Heap, and `-g2`. Full `-g3` is intentionally not used because the pinned 6.0.3

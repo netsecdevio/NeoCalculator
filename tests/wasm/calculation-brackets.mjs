@@ -19,7 +19,7 @@ try {for(const [name,type] of Object.entries({chromium,firefox,webkit})){
  const browser=await type.launch({headless:true});const folder=resolve(out,name);await mkdir(folder,{recursive:true});const records=[];
  try {for(const surface of ['shell','component']){
   const context=await browser.newContext({viewport:{width:1100,height:1100},deviceScaleFactor:1});const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(String(e)));
-  await page.goto(server.origin+(surface==='shell'?'/index.html':'/fixture.html'));
+  await page.goto(server.origin+(surface==='shell'?'/index.html?start=launcher':'/fixture.html'));
   if(surface==='component'){await page.waitForFunction(()=>customElements.get('numos-emulator'));await page.evaluate(()=>{const e=document.createElement('numos-emulator');e.setAttribute('controls','');document.body.append(e);});await page.locator('numos-emulator').locator('[data-action=overlay-start]').click();}
   const el=page.locator('numos-emulator');await page.waitForFunction(()=>document.querySelector('numos-emulator')?.diagnosticState()?.ready,null,{timeout:60000});
   if(!await el.locator('[data-physical-id=r9c4]').isVisible())await el.locator('[data-action=controls]').click();
