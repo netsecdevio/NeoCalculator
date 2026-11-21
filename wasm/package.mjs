@@ -55,6 +55,8 @@ async function buildPackage() {
   const keypadData = await readFile(join(sourceDir, "numos-keypad.js"));
 
   const assets = {};
+  assets.brand = await assetRecord("brand", "silas-mark.png",
+    await readFile(join(sourceDir, "math", "branding", "silas-mark.png")), "image/png");
   assets.wasm = await assetRecord(
     "wasm", "numos-emulator.wasm", wasmData, "application/wasm");
   assets.runtime = await assetRecord(
@@ -66,12 +68,23 @@ async function buildPackage() {
   assets.keypad = await assetRecord(
     "keypad", "numos-keypad.js", keypadData, "text/javascript");
 
+  let phoneText = await readFile(join(sourceDir, "numos-phone.js"), "utf8");
+  for (const style of ["silas", "graphing", "scientific"]) {
+    const qr = await assetRecord(`phoneQr${style}`, `qr-${style}.png`,
+      await readFile(join(sourceDir, "phone", `qr-${style}.png`)), "image/png");
+    assets[`phoneQr${style}`] = qr;
+    phoneText = phoneText.replace(`./phone/qr-${style}.png`, qr.url);
+  }
+  assets.phone = await assetRecord("phone", "numos-phone.js", Buffer.from(phoneText), "text/javascript");
+
   let componentText = await readFile(
     join(sourceDir, "numos-emulator-element.js"), "utf8");
   componentText = componentText
     .replace('"__NUMOS_INLINE_CSS__"', JSON.stringify(cssData.toString("utf8")))
+    .replace("__SILAS_BRAND_ASSET__", assets.brand.url)
     .replace("./numos-keypad.js", assets.keypad.url)
-    .replace("./numos-persistence.js", assets.persistence.url);
+    .replace("./numos-persistence.js", assets.persistence.url)
+    .replace("./numos-phone.js", assets.phone.url);
   assets.component = await assetRecord(
     "component", "numos-component.js", Buffer.from(componentText),
     "text/javascript");

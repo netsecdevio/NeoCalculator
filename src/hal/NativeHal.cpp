@@ -3840,7 +3840,7 @@ static int emulatorInitialize(int argc, char** argv)
 #endif
 
     g_window = SDL_CreateWindow(
-        "silascalc simulator",
+        "SilasCalc",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         SCREEN_W * g_opts.windowScale, SCREEN_H * g_opts.windowScale,
         SDL_WINDOW_SHOWN
@@ -4462,9 +4462,17 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* numos_diagnostic_state()
     return json.c_str();
 }
 
+static bool g_browserAnimationFrames = false;
 static void browserMainLoop()
 {
     emulatorRunFrame();
+    // Cross-origin WKWebView frames may not receive animation frames before
+    // their first interaction. Bootstrap on timers; use normal display-synced
+    // rendering once the launcher exists, without running a permanent timer.
+    if (!g_browserAnimationFrames && numos_is_ready()) {
+        g_browserAnimationFrames = true;
+        emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+    }
     if (g_quit) {
         emscripten_cancel_main_loop();
         emulatorShutdown();
@@ -4475,7 +4483,8 @@ int main(int argc, char** argv)
 {
     const int initStatus = emulatorInitialize(argc, argv);
     if (initStatus != 0) return initStatus < 0 ? 0 : initStatus;
-    emscripten_set_main_loop(browserMainLoop, 0, false);
+    g_browserAnimationFrames = false;
+    emscripten_set_main_loop(browserMainLoop, 60, false);
     return 0;
 }
 #else

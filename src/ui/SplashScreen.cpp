@@ -55,7 +55,11 @@ void SplashScreen::create() {
 
     // ── Logo "NumOS" ──
     _lblLogo = lv_label_create(_screen);
+#ifdef __EMSCRIPTEN__
+    lv_label_set_text(_lblLogo, "SilasCalc");
+#else
     lv_label_set_text(_lblLogo, "NumOS");
+#endif
     lv_obj_set_style_text_font(_lblLogo, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lblLogo, lv_color_make(0xFF, 0x95, 0x00), 0);
     lv_obj_set_style_text_align(_lblLogo, LV_TEXT_ALIGN_CENTER, 0);
@@ -64,7 +68,11 @@ void SplashScreen::create() {
 
     // ── Version "v1.0.0 | Powered by numOS" ──
     _lblVersion = lv_label_create(_screen);
+#ifdef __EMSCRIPTEN__
+    lv_label_set_text(_lblVersion, "A little help. A lot of possibility.");
+#else
     lv_label_set_text(_lblVersion, "v1.0.0 | Powered by numOS");
+#endif
     lv_obj_set_style_text_font(_lblVersion, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(_lblVersion, lv_color_make(0x90, 0x90, 0x90), 0);
     lv_obj_set_style_text_align(_lblVersion, LV_TEXT_ALIGN_CENTER, 0);

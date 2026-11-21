@@ -1,10 +1,12 @@
 import {
   NUMOS_LOGICAL_KEY_MAX,
-  NUMOS_WEB_KEYPAD_LAYOUT,
+  SILAS_CALCULATOR_LAYOUTS,
 } from "./numos-keypad.js";
 import { createPersistenceController } from "./numos-persistence.js";
+import { createPhoneHandoff } from "./numos-phone.js";
 
 const COMPONENT_CSS = "__NUMOS_INLINE_CSS__";
+const SILAS_MARK_URL = new URL("__SILAS_BRAND_ASSET__", import.meta.url).href;
 const LOGICAL_WIDTH = 320;
 const LOGICAL_HEIGHT = 240;
 const KEY_PRESS = 1;
@@ -33,32 +35,32 @@ const TRANSITIONS = Object.freeze({
 });
 
 const STATE_LABELS = Object.freeze({
-  idle: "Not started",
-  waiting_for_viewport: "Waiting until NumOS approaches the viewport",
-  loading_manifest: "Loading asset manifest",
-  loading_runtime: "Loading runtime loader",
-  downloading_wasm: "Downloading NumOS",
-  instantiating: "Compiling and instantiating WebAssembly",
-  hydrating: "Hydrating saved NumOS data",
-  booting: "Starting NumOS",
-  ready: "NumOS launcher ready",
-  flushing: "Syncing saved NumOS data",
-  shutting_down: "Shutting down NumOS",
-  stopped: "NumOS is shut down",
-  error: "NumOS could not start",
+  idle: "SilasCalc",
+  waiting_for_viewport: "SilasCalc",
+  loading_manifest: "Opening your calculator…",
+  loading_runtime: "Opening your calculator…",
+  downloading_wasm: "Opening your calculator…",
+  instantiating: "Getting ready…",
+  hydrating: "Restoring your calculator…",
+  booting: "Getting ready…",
+  ready: "Ready",
+  flushing: "Saving…",
+  shutting_down: "Closing…",
+  stopped: "Calculator off",
+  error: "Could not open your calculator",
 });
 
 const ERROR_MESSAGES = Object.freeze({
-  ASSET_MANIFEST_FAILURE: "The NumOS asset manifest could not be loaded.",
-  LOADER_FAILURE: "The NumOS runtime loader could not be loaded.",
-  WASM_FETCH_FAILURE: "The NumOS WebAssembly file could not be downloaded.",
-  WASM_INSTANTIATION_FAILURE: "NumOS WebAssembly could not be instantiated.",
-  UNSUPPORTED_BROWSER: "This browser is missing a feature required by NumOS.",
+  ASSET_MANIFEST_FAILURE: "Check your connection, then try again.",
+  LOADER_FAILURE: "Check your connection, then try again.",
+  WASM_FETCH_FAILURE: "Check your connection, then try again.",
+  WASM_INSTANTIATION_FAILURE: "Please close and reopen the calculator.",
+  UNSUPPORTED_BROWSER: "Please update your app or browser to use this calculator.",
   PERSISTENCE_FALLBACK: "Saved storage is unavailable; this session is temporary.",
-  NUMOS_BOOT_TIMEOUT: "NumOS did not reach the launcher in time.",
-  SECOND_ACTIVE_INSTANCE: "Another NumOS emulator is already active in this document.",
-  SHUTDOWN_FAILURE: "NumOS did not shut down cleanly.",
-  RESET_CANCELLED: "Persistent storage reset was cancelled.",
+  NUMOS_BOOT_TIMEOUT: "The calculator is taking longer than expected. Please try again.",
+  SECOND_ACTIVE_INSTANCE: "Your calculator is already open.",
+  SHUTDOWN_FAILURE: "The calculator could not close. Please try again.",
+  RESET_CANCELLED: "Reset cancelled.",
 });
 
 function boundedText(value, limit = 800) {
@@ -182,6 +184,7 @@ export class NumosEmulatorElement extends HTMLElement {
   #haptics = false;
   #modifierMode = "none";
   #lastError = null;
+  #calculatorStyle = "silas";
   #lastPersistenceState = null;
   #timings = {};
   #connected = false;
@@ -197,27 +200,29 @@ export class NumosEmulatorElement extends HTMLElement {
     shell.setAttribute("part", "shell");
     shell.innerHTML = `
       <header class="topbar">
-        <div class="brand"><strong>NumOS Emulator</strong><span>Real SDL2 · LVGL · Giac WebAssembly</span></div>
+        <div class="brand"><img class="silas-mark" src="${SILAS_MARK_URL}" alt="" width="32" height="32"><strong>SilasCalc</strong></div>
         <div class="actions">
-          <button type="button" data-action="start">Start</button>
+          <button type="button" data-action="start">Turn on</button>
           <button type="button" data-action="retry" hidden>Retry</button>
-          <button type="button" data-action="fullscreen">Fullscreen</button>
-          <button type="button" data-action="controls" aria-pressed="false">Show controls</button>
-          <button type="button" data-action="haptics" aria-pressed="false" hidden>Haptics off</button>
-          <button type="button" data-action="restart" hidden>Restart</button>
-          <button type="button" data-action="power" hidden>Power off</button>
         </div>
       </header>
+      <label class="style-picker">Calculator style
+        <select data-calculator-style aria-label="Calculator style">
+          <option value="silas">SilasCalc</option>
+          <option value="graphing">Classroom graphing</option>
+          <option value="scientific">Scientific</option>
+        </select>
+      </label>
       <div class="content">
         <div class="display-column">
           <div class="display-stage" part="display">
             <div class="canvas-mount"></div>
             <div class="overlay">
               <div class="overlay-card">
-                <h2>NumOS is ready to load</h2>
-                <p>Start the real calculator runtime when you need it.</p>
+                <h2>SilasCalc</h2>
+                <p>Your calculator is ready when you are.</p>
                 <div class="progress" hidden><span></span></div>
-                <button type="button" data-action="overlay-start">Start NumOS</button>
+                <button type="button" data-action="overlay-start">Turn on</button>
               </div>
             </div>
           </div>
@@ -226,11 +231,18 @@ export class NumosEmulatorElement extends HTMLElement {
             <span class="persistence"><span class="dot"></span><span data-persistence>Storage not initialized</span></span>
           </div>
         </div>
-        <div class="controls" aria-label="NumOS touch controls" hidden></div>
+        <div class="controls" aria-label="Calculator keypad" hidden></div>
       </div>
       <details>
-        <summary>Technical details</summary>
+        <summary>About SilasCalc</summary>
         <div class="details-body">
+          <p>SilasCalc uses the open-source NeoCalculator engine, with NumOS, SDL, LVGL and Giac. Licenses and source attribution are included with this app.</p>
+          <p>All styles use the same SilasCalc math engine. These layouts are not exact replicas of TI or Casio calculators.</p>
+          <button type="button" data-action="fullscreen">Fullscreen</button>
+          <button type="button" data-action="controls" aria-pressed="false">Show controls</button>
+          <button type="button" data-action="haptics" aria-pressed="false" hidden>Haptics off</button>
+          <button type="button" data-action="restart" hidden>Restart calculator</button>
+          <button type="button" data-action="power" hidden>Turn off</button>
           <dl>
             <dt>Lifecycle</dt><dd data-detail-state>idle</dd>
             <dt>Build</dt><dd data-detail-build>not loaded</dd>
@@ -238,12 +250,13 @@ export class NumosEmulatorElement extends HTMLElement {
             <dt>Storage</dt><dd data-detail-storage>not initialized</dd>
             <dt>Error</dt><dd data-detail-error>none</dd>
           </dl>
-          <button type="button" data-action="clear-storage">Clear saved NumOS data</button>
+          <button type="button" data-action="clear-storage">Reset saved calculator data</button>
           <button type="button" data-action="shutdown" disabled>Shut down</button>
         </div>
       </details>
       <div class="sr-only" aria-live="polite" aria-atomic="true" data-live></div>`;
     this.#shadow.append(shell);
+    this.#shadow.querySelector(".actions").append(createPhoneHandoff(() => this.calculatorStyle));
     this.#renderKeypad();
     this.#bindShell();
     this.#render();
@@ -278,6 +291,19 @@ export class NumosEmulatorElement extends HTMLElement {
 
   get state() { return this.#state; }
   get ready() { return this.#readyDeferred.promise; }
+  get calculatorStyle() { return this.#calculatorStyle; }
+  set calculatorStyle(style) {
+    if (!Object.hasOwn(SILAS_CALCULATOR_LAYOUTS, style)) return;
+    const enabled = this.#inputEnabled;
+    this.#releaseAllInput();
+    this.#calculatorStyle = style;
+    this.#shadow.querySelector("[data-calculator-style]").value = style;
+    this.#renderKeypad();
+    this.#renderModifierVisual();
+    this.#inputEnabled = enabled;
+    this.#fitCanvas();
+  }
+
   get autostart() { return this.#autostartEnabled(); }
   set autostart(value) { this.toggleAttribute("autostart", Boolean(value)); }
   get controls() { return this.getAttribute("controls") || "auto"; }
@@ -328,6 +354,7 @@ export class NumosEmulatorElement extends HTMLElement {
     const token = ++this.#generation;
     this.#startupAbort = new AbortController();
     this.#lastError = null;
+    this.#shadow.querySelector("[data-detail-error]").textContent = "none";
     this.#lastPersistenceState = null;
     this.#timings = { startAt: performance.now() };
     this.#createCanvas(token);
@@ -503,7 +530,7 @@ export class NumosEmulatorElement extends HTMLElement {
       } finally {
         this.#runtimeAbort?.abort();
         this.#runtimeAbort = null;
-        cancelAnimationFrame(this.#bootFrame);
+        clearTimeout(this.#bootFrame);
         this.#bootFrame = 0;
         if (this.#fitFrame) {
           this.ownerDocument.defaultView.cancelAnimationFrame(this.#fitFrame);
@@ -801,7 +828,7 @@ export class NumosEmulatorElement extends HTMLElement {
             }));
             return;
           }
-          this.#bootFrame = requestAnimationFrame(poll);
+          this.#bootFrame = setTimeout(poll, 25);
         } catch (error) {
           reject(error);
         }
@@ -843,7 +870,7 @@ export class NumosEmulatorElement extends HTMLElement {
     canvas.height = LOGICAL_HEIGHT;
     canvas.tabIndex = 0;
     canvas.setAttribute("part", "canvas");
-    canvas.setAttribute("aria-label", "NumOS calculator display");
+    canvas.setAttribute("aria-label", "SilasCalc calculator display");
     canvas.dataset.generation = String(token);
     this.#shadow.querySelector(".canvas-mount").append(canvas);
     this.#canvas = canvas;
@@ -918,13 +945,9 @@ export class NumosEmulatorElement extends HTMLElement {
     if (!this.#canvas) return;
     const stage = this.#shadow.querySelector(".display-stage");
     const width = Math.max(1, stage.clientWidth - 16);
-    const viewportHeight = this.ownerDocument.fullscreenElement === this
-      ? Math.max(1, this.clientHeight - 170)
-      : Math.max(1, this.ownerDocument.defaultView.innerHeight * .68);
-    const height = Math.max(1, viewportHeight);
-    const fitting = Math.min(width / LOGICAL_WIDTH, height / LOGICAL_HEIGHT);
-    const integer = Math.floor(fitting);
-    const scale = integer >= 1 ? integer : Math.max(.1, fitting);
+    // Use the whole screen width. Flooring to integer scales makes host zoom
+    // shrink the calculator abruptly; reserving keypad height shrinks it too.
+    const scale = Math.max(.1, width / LOGICAL_WIDTH);
     const cssWidth = Math.max(1, Math.round(LOGICAL_WIDTH * scale));
     const cssHeight = Math.max(1, Math.round(LOGICAL_HEIGHT * scale));
     if (this.#canvas.style.width !== `${cssWidth}px`) {
@@ -989,7 +1012,8 @@ export class NumosEmulatorElement extends HTMLElement {
 
   #renderKeypad() {
     const controls = this.#shadow.querySelector(".controls");
-    for (const group of NUMOS_WEB_KEYPAD_LAYOUT) {
+    controls.replaceChildren();
+    for (const group of SILAS_CALCULATOR_LAYOUTS[this.#calculatorStyle]) {
       const section = document.createElement("section");
       section.className = "key-group";
       section.dataset.group = group.name.replace(/\s+/g, "-");
@@ -1001,7 +1025,7 @@ export class NumosEmulatorElement extends HTMLElement {
         const button = document.createElement("button");
         button.type = "button";
         button.className = `key key-${key.category}`;
-        if (key.physicalId === "r9c4") button.classList.add("key-execute");
+        if (key.logicalId === "ENTER") button.classList.add("key-execute");
         if (key.alphaLabel) button.classList.add("key-has-alpha");
         button.dataset.keyCode = String(key.code);
         button.dataset.keyId = key.logicalId;
@@ -1033,6 +1057,9 @@ export class NumosEmulatorElement extends HTMLElement {
   }
 
   #bindShell() {
+    this.#shadow.querySelector("[data-calculator-style]").addEventListener("change", event => {
+      this.calculatorStyle = event.target.value;
+    });
     this.#shadow.addEventListener("click", (event) => {
       const action = event.target.closest?.("[data-action]")?.dataset.action;
       if (!action) return;
@@ -1193,7 +1220,7 @@ export class NumosEmulatorElement extends HTMLElement {
     content.classList.toggle("controls-visible", visible);
     const toggle = this.#shadow.querySelector('[data-action="controls"]');
     toggle.setAttribute("aria-pressed", String(visible));
-    toggle.textContent = visible ? "Hide controls" : "Show controls";
+    toggle.textContent = visible ? "Hide keys" : "Show keys";
     this.#fitCanvas();
   }
 
@@ -1254,17 +1281,17 @@ export class NumosEmulatorElement extends HTMLElement {
     overlay.hidden = this.#state === "ready" || this.#state === "flushing";
     if (!loading) this.#shadow.querySelector(".progress").hidden = true;
     if (this.#state === "error") {
-      title.textContent = "NumOS could not start";
+      title.textContent = "Could not open your calculator";
       description.textContent = this.#lastError?.message || label;
       description.className = "error";
     } else {
       title.textContent = label;
       description.className = "";
       description.textContent = loading
-        ? "The real NumOS runtime is starting."
+        ? "Just a moment…"
         : this.#state === "stopped"
-          ? "The runtime has released its resources and can be started again."
-          : "Start the real calculator runtime when you need it.";
+          ? "Turn on whenever you are ready."
+          : "Your calculator is ready when you are.";
     }
     this.#renderHaptics();
     this.#renderFullscreen();
@@ -1279,10 +1306,8 @@ export class NumosEmulatorElement extends HTMLElement {
     const percent = determinate
       ? Math.min(100, downloadedBytes / totalBytes * 100) : null;
     progress.style.setProperty("--progress", `${percent || 0}%`);
-    const suffix = determinate
-      ? `${formatBytes(downloadedBytes)} of ${formatBytes(totalBytes)}`
-      : downloadedBytes ? formatBytes(downloadedBytes) : "working";
-    this.#shadow.querySelector(".overlay p").textContent = `${stage}: ${suffix}`;
+    this.#shadow.querySelector(".overlay p").textContent = determinate
+      ? `${Math.round(percent)}%` : "Just a moment…";
     this.#emit("numos-progress", {
       state: this.#state,
       stage,

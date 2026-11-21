@@ -15,12 +15,19 @@ if (!globalThis.customElements) {
   window.numosReady.catch(() => {});
 } else {
   const parameters = new URLSearchParams(location.search);
+  emulator.calculatorStyle = parameters.get("style") || "silas";
   if (parameters.get("persistence") === "disabled") {
     emulator.setAttribute("persistence", "disabled");
   }
   if (parameters.get("persistenceTest")) {
     emulator.setAttribute("persistence-test", parameters.get("persistenceTest"));
   }
+
+  // The student entry opens as a calculator, not an operating-system launcher.
+  // HOME still exposes graphing and the other engine tools.
+  emulator.addEventListener("numos-ready", () => {
+    if (emulator.diagnosticState()?.app === "Menu") emulator.pressLogicalKey(48);
+  });
 
   const api = Object.freeze({
     isReady: () => emulator.state === "ready",

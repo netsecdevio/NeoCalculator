@@ -40,3 +40,31 @@ jobs:
       - run: node tests/wasm/math-display.mjs
       - run: node tests/wasm/branding.mjs
       - run: node tests/wasm/packaging.mjs
+
+  browser-calculator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install calculator build dependencies
+        run: |
+          python -m pip install platformio
+          pio pkg install -e emulator_pc
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+          /tmp/emsdk/emsdk install "$(cat wasm/emscripten.version)"
+          /tmp/emsdk/emsdk activate "$(cat wasm/emscripten.version)"
+      - name: Build real calculator
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          JOBS=2 bash wasm/build.sh Release
+      - run: npm ci --prefix tests/wasm --ignore-scripts
+      - run: npx --prefix tests/wasm playwright install --with-deps chromium webkit
+      - run: node tests/wasm/component.mjs
+      - run: NUMOS_BROWSER=webkit node tests/wasm/component.mjs
+      - run: node tests/wasm/student-calculator.mjs
+      - run: node tests/wasm/phone-handoff.mjs
