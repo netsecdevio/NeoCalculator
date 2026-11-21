@@ -152,9 +152,16 @@ async function validatePackage() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.schemaVersion !== 1) throw new Error("manifest schemaVersion must be 1");
   for (const required of ["wasm", "runtime", "component", "componentCss",
-                           "persistence", "keypad", "shell"]) {
-    const entry = manifest.assets?.[required];
-    if (!entry) throw new Error(`missing manifest asset: ${required}`);
+                           "persistence", "keypad", "shell", "brand", "phone",
+                           "phoneQrsilas", "phoneQrgraphing", "phoneQrscientific"]) {
+    if (!manifest.assets?.[required]) throw new Error(`missing manifest asset: ${required}`);
+  }
+  for (const [required, entry] of Object.entries(manifest.assets)) {
+    if (!entry || typeof entry.url !== "string" ||
+        !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 ||
+        typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256)) {
+      throw new Error(`invalid manifest asset: ${required}`);
+    }
     if (!entry.url.startsWith("./") || entry.url.includes("..")) {
       throw new Error(`asset URL is not subpath-safe: ${entry.url}`);
     }
