@@ -55,6 +55,8 @@ async function buildPackage() {
   const keypadData = await readFile(join(sourceDir, "numos-keypad.js"));
 
   const assets = {};
+  assets.brand = await assetRecord("brand", "silas-mark.png",
+    await readFile(join(sourceDir, "math", "branding", "silas-mark.png")), "image/png");
   assets.wasm = await assetRecord(
     "wasm", "numos-emulator.wasm", wasmData, "application/wasm");
   assets.runtime = await assetRecord(
@@ -66,12 +68,23 @@ async function buildPackage() {
   assets.keypad = await assetRecord(
     "keypad", "numos-keypad.js", keypadData, "text/javascript");
 
+  let phoneText = await readFile(join(sourceDir, "numos-phone.js"), "utf8");
+  for (const style of ["silas", "graphing", "scientific"]) {
+    const qr = await assetRecord(`phoneQr${style}`, `qr-${style}.png`,
+      await readFile(join(sourceDir, "phone", `qr-${style}.png`)), "image/png");
+    assets[`phoneQr${style}`] = qr;
+    phoneText = phoneText.replace(`./phone/qr-${style}.png`, qr.url);
+  }
+  assets.phone = await assetRecord("phone", "numos-phone.js", Buffer.from(phoneText), "text/javascript");
+
   let componentText = await readFile(
     join(sourceDir, "numos-emulator-element.js"), "utf8");
   componentText = componentText
     .replace('"__NUMOS_INLINE_CSS__"', JSON.stringify(cssData.toString("utf8")))
+    .replace("__SILAS_BRAND_ASSET__", assets.brand.url)
     .replace("./numos-keypad.js", assets.keypad.url)
-    .replace("./numos-persistence.js", assets.persistence.url);
+    .replace("./numos-persistence.js", assets.persistence.url)
+    .replace("./numos-phone.js", assets.phone.url);
   assets.component = await assetRecord(
     "component", "numos-component.js", Buffer.from(componentText),
     "text/javascript");
@@ -139,9 +152,16 @@ async function validatePackage() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.schemaVersion !== 1) throw new Error("manifest schemaVersion must be 1");
   for (const required of ["wasm", "runtime", "component", "componentCss",
-                           "persistence", "keypad", "shell"]) {
-    const entry = manifest.assets?.[required];
-    if (!entry) throw new Error(`missing manifest asset: ${required}`);
+                           "persistence", "keypad", "shell", "brand", "phone",
+                           "phoneQrsilas", "phoneQrgraphing", "phoneQrscientific"]) {
+    if (!manifest.assets?.[required]) throw new Error(`missing manifest asset: ${required}`);
+  }
+  for (const [required, entry] of Object.entries(manifest.assets)) {
+    if (!entry || typeof entry.url !== "string" ||
+        !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 ||
+        typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256)) {
+      throw new Error(`invalid manifest asset: ${required}`);
+    }
     if (!entry.url.startsWith("./") || entry.url.includes("..")) {
       throw new Error(`asset URL is not subpath-safe: ${entry.url}`);
     }

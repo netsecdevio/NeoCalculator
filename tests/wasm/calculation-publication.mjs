@@ -24,7 +24,7 @@ try {
    }};
   });
   const page=await context.newPage();
-  await page.goto(server.origin+(surface==='shell'?'/index.html':'/fixture.html'));
+  await page.goto(server.origin+(surface==='shell'?'/index.html?start=launcher':'/fixture.html'));
   if(surface==='component') {
    await page.waitForFunction(()=>customElements.get('numos-emulator'));
    await page.evaluate(()=>{const e=document.createElement('numos-emulator');e.setAttribute('controls','');document.body.append(e);});

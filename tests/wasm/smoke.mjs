@@ -28,7 +28,7 @@ const delay = (milliseconds) => new Promise((resolve) =>
 async function waitForServer() {
   for (let attempt = 0; attempt < 100; ++attempt) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/index.html`);
+      const response = await fetch(`http://127.0.0.1:${port}/index.html?start=launcher`);
       if (response.ok) return;
     } catch {}
     await delay(50);
@@ -52,7 +52,7 @@ try {
   });
 
   const navigationStarted = performance.now();
-  await page.goto(`http://127.0.0.1:${port}/index.html`, {
+  await page.goto(`http://127.0.0.1:${port}/index.html?start=launcher`, {
     waitUntil: "domcontentloaded",
   });
   await page.waitForFunction(() => Boolean(window.numosReady), null,

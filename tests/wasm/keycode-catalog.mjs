@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { NUMOS_LOGICAL_KEYS, NUMOS_WEB_KEYPAD_LAYOUT, NUMOS_LOGICAL_KEY_MAX } from "../../wasm/numos-keypad.js";
+import { NUMOS_LOGICAL_KEYS, NUMOS_WEB_KEYPAD_LAYOUT, NUMOS_LOGICAL_KEY_MAX, SILAS_CALCULATOR_LAYOUTS } from "../../wasm/numos-keypad.js";
 
 const source = await readFile(
   new URL("../../src/input/KeyCodes.h", import.meta.url), "utf8");
@@ -32,3 +32,10 @@ assert.equal(new Set(actual.map(([, code]) => code)).size, actual.length,
 console.log(`NumOS web logical-key catalog: ${actual.length}/${expected.length}`);
 const scientific = NUMOS_WEB_KEYPAD_LAYOUT.flatMap(group=>group.keys).find(key=>key.physicalId==='r9c2');
 assert.equal(scientific?.logicalId,'EXP','the visible ×10^ key must not dispatch generic POW');
+
+for (const [name, groups] of Object.entries(SILAS_CALCULATOR_LAYOUTS)) {
+  for (const key of groups.flatMap(group => group.keys)) {
+    assert.ok(actual.some(([id, code]) => id === key.logicalId && code === key.code),
+      `${name}: every key must use its real engine code`);
+  }
+}

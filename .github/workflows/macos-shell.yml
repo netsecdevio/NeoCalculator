@@ -1,7 +1,7 @@
 name: Mac connection and packaging
 on:
   pull_request:
-    paths: ['macos/**', 'scripts/package-macos.py', 'scripts/build-macos-universal.py', 'scripts/sdl2_env.py', 'tests/host/mac_keychain_test.swift', 'tests/host/mac_package_test.py', '.github/workflows/macos-shell.yml']
+    paths: ['macos/**', 'scripts/package-macos.py', 'scripts/build-macos-universal.py', 'scripts/sdl2_env.py', 'tests/host/mac_keychain_test.swift', 'tests/host/mac_package_test.py', '.github/workflows/macos-shell.yml', 'wasm/phone/**']
 permissions:
   contents: read
 jobs:
@@ -20,3 +20,5 @@ jobs:
           python3 -m py_compile scripts/package-macos.py scripts/build-macos-universal.py scripts/sdl2_env.py
           python3 scripts/package-macos.py --help
           python3 tests/host/mac_package_test.py
+      - name: Verify offline calculator phone QR targets
+        run: xcrun swift wasm/phone/generate-qr.swift wasm/phone --verify

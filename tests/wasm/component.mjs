@@ -148,7 +148,21 @@ try {
       window.componentProgress.push(event.detail);
     });
   });
-  const ready = await start();
+  // WKWebView can withhold rAF in a newly opened cross-origin child. Boot
+  // must not depend on its first paint/interaction; normal rendering resumes.
+  const ready = await page.evaluate(async () => {
+    const original = window.requestAnimationFrame;
+    const pending = [];
+    window.requestAnimationFrame = callback => { pending.push(callback); return 0; };
+    try {
+      const ready = await window.emulator.start();
+      if (!window.emulator.diagnosticState().ready) throw Error("launcher not ready");
+      return ready;
+    } finally {
+      window.requestAnimationFrame = original;
+      for (const callback of pending) original.call(window, callback);
+    }
+  });
   progress.push(...await page.evaluate(() => window.componentProgress));
   assert.equal(ready.ready, true);
   assert.equal(ready.logicalWidth, 320);
@@ -165,12 +179,14 @@ try {
   });
   assert.deepEqual(concurrentFlush,
     { during: "flushing", state: "ready", sameCanvas: true, canvases: 1 });
+  await page.locator("numos-emulator").locator("summary").click();
   assert.equal(await page.locator("numos-emulator")
     .locator('[data-action="restart"]').isVisible(), true,
   "restart control must be visible while NumOS is running");
   assert.equal(await page.locator("numos-emulator")
     .locator('[data-action="power"]').isVisible(), true,
   "power control must be visible while NumOS is running");
+  await page.locator("numos-emulator").locator("summary").click();
   assert.ok(progress.some((event) => event.stage === "Wasm download" &&
     event.downloadedBytes > 0 && event.totalBytes > 0));
   assert.ok(progress.some((event) => event.stage === "runtime loader"));
@@ -401,6 +417,7 @@ try {
       window.lastShutdown = event.detail;
     }, { once: true });
   });
+  await page.locator("numos-emulator").first().locator("summary").click();
   await page.locator("numos-emulator").first()
     .locator('[data-action="power"]').click();
   await page.waitForFunction(() => window.emulator.state === "stopped");
@@ -452,6 +469,7 @@ try {
     phase = "missing-retry";
     await page.evaluate(() => window.emulator.removeAttribute("manifest"));
     assert.equal((await start()).ready, true);
+    assert.equal(await page.locator("numos-emulator").locator("[data-detail-error]").textContent(), "none", "successful retry clears the old error");
     await shutdown();
     await page.evaluate(() => { window.emulator.remove(); });
 

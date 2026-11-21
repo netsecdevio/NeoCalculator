@@ -35,7 +35,7 @@ try{
   // Isolated profile; keep its persistence enabled throughout all fixtures.
   const context=await browser.newContext({viewport:{width:1100,height:1100},deviceScaleFactor:1});
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(String(e)));
-  await page.goto(server.origin+(surface==='shell'?'/index.html':'/fixture.html'));
+  await page.goto(server.origin+(surface==='shell'?'/index.html?start=launcher':'/fixture.html'));
   if(surface==='component') {
    await page.waitForFunction(()=>customElements.get('numos-emulator'));
    await page.evaluate(()=>{const el=document.createElement('numos-emulator');el.setAttribute('controls','');document.body.append(el);});

@@ -149,3 +149,37 @@ export const NUMOS_WEB_KEYPAD_LAYOUT = Object.freeze([
 // Keep the public range in step with the audited C++/JS catalog, including
 // bracket grouping and the explicit FORMAT menu entry.
 export const NUMOS_LOGICAL_KEY_MAX = Math.max(...NUMOS_LOGICAL_KEYS.map(key => key.code));
+
+// These are SilasCalc layouts, not branded calculator/ROM emulation. Every
+// button uses the same audited logical-input catalog as the default face.
+const layoutKey = id => {
+  const key = byId.get(id);
+  if (!key) throw new Error(`Unknown calculator layout key: ${id}`);
+  const category = id.startsWith("NUM_") || id === "DOT" ? "number"
+    : ["ADD", "SUB", "MUL", "DIVIDE", "NEG"].includes(id) ? "operator" : "function";
+  const label = ({ MODE: "HOME", ENTER: "EXE", VAR_X: "x", DIVIDE: "÷", POW: "xʸ", FRAC: "frac" })[id] || key.label;
+  return Object.freeze({ ...key, logicalId: id, physicalId: `layout-${id}`,
+    label, shiftLabel: "", alphaLabel: "", category });
+};
+const layout = ids => Object.freeze([{ name: "calculator keypad",
+  keys: Object.freeze(ids.trim().split(/\s+/).map(layoutKey)) }]);
+export const SILAS_CALCULATOR_LAYOUTS = Object.freeze({
+  silas: NUMOS_WEB_KEYPAD_LAYOUT,
+  graphing: layout(`MODE GRAPH TABLE ZOOM TOOLBOX
+    SHIFT ALPHA UP DEL AC
+    VAR_X LEFT DOWN RIGHT STO
+    SIN COS TAN POW SQRT
+    LOG LN FRAC LPAREN RPAREN
+    NUM_7 NUM_8 NUM_9 DIVIDE CONST_PI
+    NUM_4 NUM_5 NUM_6 MUL CONST_E
+    NUM_1 NUM_2 NUM_3 SUB ANS
+    NUM_0 DOT NEG ADD ENTER`),
+  scientific: layout(`MODE SHIFT UP DEL AC
+    VAR_X LEFT DOWN RIGHT TOOLBOX
+    SIN COS TAN POW SQRT
+    LOG LN FRAC LPAREN RPAREN
+    NUM_7 NUM_8 NUM_9 DIVIDE CONST_PI
+    NUM_4 NUM_5 NUM_6 MUL CONST_E
+    NUM_1 NUM_2 NUM_3 SUB ANS
+    NUM_0 DOT NEG ADD ENTER`),
+});
