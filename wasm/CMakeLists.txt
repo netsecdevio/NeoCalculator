@@ -181,30 +181,15 @@ else()
     target_link_options(emulator_web PRIVATE -O2 -sASSERTIONS=1)
 endif()
 
-add_custom_command(TARGET emulator_web POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/index.html" "${NUMOS_OUTPUT_DIR}/index.html"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/numos-shell.js" "${NUMOS_OUTPUT_DIR}/numos-shell.js"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/numos-emulator-element.js"
-            "${NUMOS_OUTPUT_DIR}/numos-emulator-element.js"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/numos-keypad.js"
-            "${NUMOS_OUTPUT_DIR}/numos-keypad.js"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/numos-persistence.js"
-            "${NUMOS_OUTPUT_DIR}/numos-persistence.js"
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_LIST_DIR}/numos-component.css"
-            "${NUMOS_OUTPUT_DIR}/numos-component.css"
-)
-set_property(TARGET emulator_web APPEND PROPERTY LINK_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/index.html"
-    "${CMAKE_CURRENT_LIST_DIR}/numos-shell.js"
-    "${CMAKE_CURRENT_LIST_DIR}/numos-emulator-element.js"
-    "${CMAKE_CURRENT_LIST_DIR}/numos-keypad.js"
-    "${CMAKE_CURRENT_LIST_DIR}/numos-persistence.js"
-    "${CMAKE_CURRENT_LIST_DIR}/numos-build.js.in"
-    "${CMAKE_CURRENT_LIST_DIR}/numos-component.css"
+# This directory contains compiler intermediates only. The executable browser
+# entry is assembled by wasm/build.sh -> package.mjs in out/wasm/dist/<config>.
+# Remove only obsolete shell files previously copied here, including in reused
+# build trees; they lack the generated manifest and inlined component styles.
+file(REMOVE
+    "${NUMOS_OUTPUT_DIR}/index.html"
+    "${NUMOS_OUTPUT_DIR}/numos-shell.js"
+    "${NUMOS_OUTPUT_DIR}/numos-emulator-element.js"
+    "${NUMOS_OUTPUT_DIR}/numos-keypad.js"
+    "${NUMOS_OUTPUT_DIR}/numos-persistence.js"
+    "${NUMOS_OUTPUT_DIR}/numos-component.css"
 )

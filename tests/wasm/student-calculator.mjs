@@ -9,6 +9,13 @@ try {
     const browser = await engine.launch();
     try {
       const page = await browser.newPage({ viewport: { width: 560, height: 820 } });
+      const pageErrors = [];
+      const missingAssets = [];
+      page.on('pageerror', error => pageErrors.push(error.message));
+      page.on('response', response => {
+        if (response.url().startsWith(server.origin) && response.status() >= 400)
+          missingAssets.push(`${response.status()} ${response.url()}`);
+      });
       await page.goto(`${server.origin}/index.html?persistence=disabled`);
       await page.waitForFunction(() => window.numos?.isReady());
       const host = page.locator('numos-emulator');
@@ -72,6 +79,15 @@ try {
       await page.waitForFunction(() => document.querySelector('numos-emulator').shadowRoot.querySelector('.phone-handoff-dialog img').naturalWidth > 0);
       assert.equal(await phone.getByRole('link').getAttribute('href'),
         'https://famclaw.silas-ai.io/dashboard/lessons/calculator/emulator/index.html?persistence=disabled&style=silas');
+      // Exercise every packaged QR dependency, not just the default picture.
+      for (const style of ['graphing', 'scientific', 'silas']) {
+        await phone.getByRole('button', { name: 'Done', exact: true }).click();
+        await host.getByLabel('Calculator style', { exact: true }).selectOption(style);
+        await host.getByRole('button', { name: 'Open on my phone', exact: true }).click();
+        await phone.locator('img').evaluate(img => img.decode());
+        assert.ok(await phone.locator('img').evaluate(img => img.naturalWidth > 0));
+        assert.ok((await phone.getByRole('link').getAttribute('href')).endsWith(`style=${style}`));
+      }
       const beforePhone = await page.evaluate(() => window.numos.diagnosticState().input);
       assert.ok(Number.isFinite(beforePhone.events));
       await page.keyboard.press('ArrowRight');
@@ -86,6 +102,8 @@ try {
       assert.equal(await phonePage.evaluate(() => window.numos.persistenceState().state), 'disabled');
       await phonePage.close();
       if (process.env.SILASCALC_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SILASCALC_SCREENSHOT_DIR}/silascalc-student-${engine.name()}.png`, fullPage: true });
+      assert.deepEqual(missingAssets, [], 'the served package contains every runtime/image dependency');
+      assert.deepEqual(pageErrors, [], 'the standalone module graph loads without uncaught errors');
       await page.evaluate(() => window.numos.requestShutdown());
       console.log(`${engine.name()}: calculator branding, all three actual key layouts, graph entry, zoom and readable keypad passed`);
     } finally { await browser.close(); }

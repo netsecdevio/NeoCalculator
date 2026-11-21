@@ -86,14 +86,16 @@ wasm/build.sh Release
 wasm/build.sh Debug
 ```
 
-Outputs are written below ignored `out/wasm/release/` and
-`out/wasm/debug/`. Each contains `numos-emulator.wasm`, an ES-module
-`numos-emulator.js` factory, and the small HTML/CSS/module shell. Serve the
-directory over HTTP; browsers do not reliably instantiate Wasm ES modules from
-`file:` URLs:
+The complete browser packages are written below ignored
+`out/wasm/dist/release/` and `out/wasm/dist/debug/`. Each includes the entry page,
+manifest, content-hashed runtime/Wasm, calculator component, styles, brand image,
+and phone QR assets. Serve this packaged directory over HTTP; browsers do not
+reliably instantiate Wasm ES modules from `file:` URLs. The sibling
+`out/wasm/release/` and `out/wasm/debug/` directories contain compiler
+intermediates only and are not browser entry points:
 
 ```sh
-python3 -m http.server 8000 --directory out/wasm/release
+python3 -m http.server 8000 --directory out/wasm/dist/release
 ```
 
 Then open `http://127.0.0.1:8000/`.
