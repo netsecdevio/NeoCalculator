@@ -153,6 +153,18 @@ try {
   assert.equal(ready.ready, true);
   assert.equal(ready.logicalWidth, 320);
   assert.equal(ready.logicalHeight, 240);
+  const concurrentFlush = await page.evaluate(async () => {
+    const element = window.emulator;
+    const originalCanvas = element.shadowRoot.querySelector("canvas");
+    const flush = element.flushPersistence();
+    const during = element.state;
+    await Promise.all([flush, element.start(), element.start()]);
+    return { during, state: element.state,
+      sameCanvas: originalCanvas === element.shadowRoot.querySelector("canvas"),
+      canvases: element.shadowRoot.querySelectorAll("canvas").length };
+  });
+  assert.deepEqual(concurrentFlush,
+    { during: "flushing", state: "ready", sameCanvas: true, canvases: 1 });
   assert.equal(await page.locator("numos-emulator")
     .locator('[data-action="restart"]').isVisible(), true,
   "restart control must be visible while NumOS is running");
@@ -544,6 +556,14 @@ try {
       } else {
         assert.equal(result, "ready");
         assert.equal(await edge.evaluate(() => window.numos.persistenceState().state), "disabled");
+        const reset = await edge.evaluate(async () => {
+          let prompts = 0;
+          window.confirm = () => { prompts++; return true; };
+          const code = await window.numos.resetPersistentStorage().then(() => "reset", error => error.code);
+          return { code, prompts, ready: window.numos.isReady() };
+        });
+        assert.deepEqual(reset, { code: "PERSISTENCE_UNAVAILABLE", prompts: 0, ready: true });
+        assert.equal(await edge.locator('numos-emulator').locator('[data-action="clear-storage"]').isHidden(), true);
         await edge.evaluate(() => window.numos.requestShutdown());
       }
       assert.deepEqual(edgeErrors, []);
