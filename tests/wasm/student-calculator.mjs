@@ -15,6 +15,21 @@ try {
       assert.equal(await page.title(), 'SilasCalc');
       assert.equal(await host.locator('.brand').innerText(), 'SilasCalc');
       assert.equal(await host.locator('details').getAttribute('open'), null);
+      await host.locator('summary').click();
+      const contrasts = await host.locator('.details-body button').evaluateAll(buttons => {
+        const luminance = css => {
+          const channels = css.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => {
+            value /= 255; return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+          });
+          return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+        };
+        return buttons.filter(button => !button.hidden && !button.disabled).map(button => {
+          const css = getComputedStyle(button), fg = luminance(css.color), bg = luminance(css.backgroundColor);
+          return { text: button.textContent, ratio: (Math.max(fg, bg) + .05) / (Math.min(fg, bg) + .05) };
+        });
+      });
+      assert.ok(contrasts.length >= 4 && contrasts.every(item => item.ratio >= 4.5), JSON.stringify(contrasts));
+      await host.locator('summary').click();
       assert.equal(await host.locator('.controls').isVisible(), true);
       assert.equal(await host.locator('.status-row').isVisible(), false);
       assert.equal(await host.locator('.silas-mark').evaluate(img => img.complete && img.naturalWidth > 0), true);

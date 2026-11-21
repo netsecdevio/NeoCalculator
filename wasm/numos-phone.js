@@ -58,6 +58,9 @@ export function createPhoneHandoff(getStyle = () => "silas") {
   button.addEventListener("click", () => {
     const requested = getStyle();
     const selected = STYLES.has(requested) ? requested : "silas";
+    const styleName = { silas: "SilasCalc", graphing: "Classroom graphing", scientific: "Scientific" }[selected];
+    instruction.textContent = `Scan with your phone’s camera to open SilasCalc in the ${styleName} style.`;
+    qr.alt = `QR code for SilasCalc in the ${styleName} style`;
     qr.src = QR_IMAGES[selected];
     link.href = phoneCalculatorUrl(selected);
     address.value = link.href;

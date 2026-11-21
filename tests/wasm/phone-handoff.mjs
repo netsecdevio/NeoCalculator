@@ -24,6 +24,9 @@ try {
         const selected = ["silas", "graphing", "scientific"].includes(style) ? style : "silas";
         const expected = "https://famclaw.silas-ai.io/dashboard/lessons/calculator/emulator/index.html?persistence=disabled&style=" + selected;
         assert.equal(await page.getByRole("link", { name: "Open calculator link" }).getAttribute("href"), expected);
+        const styleName = { silas: "SilasCalc", graphing: "Classroom graphing", scientific: "Scientific" }[selected];
+        assert.equal(await page.locator("dialog img").getAttribute("alt"), `QR code for SilasCalc in the ${styleName} style`);
+        assert.equal(await page.getByText(`Scan with your phone’s camera to open SilasCalc in the ${styleName} style.`, { exact: true }).isVisible(), true);
         await page.waitForFunction(() => document.querySelector("dialog img").naturalWidth > 0);
         assert.match(await page.locator("dialog img").getAttribute("src"), new RegExp("qr-" + selected + "\\.png$"));
         assert.equal(await page.locator("dialog").evaluate(dialog => dialog.getBoundingClientRect().width <= innerWidth), true);

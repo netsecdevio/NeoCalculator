@@ -88,14 +88,14 @@ button:focus-visible, canvas:focus-visible, summary:focus-visible {
 .overlay button {
   border-color: var(--numos-accent);
   background: var(--numos-accent);
-  color: #fff;
+  color: #10151d;
   box-shadow: none;
 }
 [data-action="start"]:hover,
 [data-action="retry"]:hover,
 .overlay button:hover {
   border-color: #214f8e;
-  background: #214f8e;
+  background: #b6a0ff;
 }
 [data-action="restart"] {
   border-color: #aebdd2;
@@ -279,7 +279,7 @@ canvas {
 }
 .key-legend-alpha {
   right: .46rem;
-  color: #d45a46;
+  color: #ffb8af;
   text-align: right;
 }
 .key:not(.key-has-alpha) .key-legend-shift {
@@ -336,12 +336,12 @@ canvas {
 .key-execute {
   border-color: var(--numos-accent);
   background: var(--numos-accent);
-  color: #fff;
+  color: #10151d;
   box-shadow: 0 3px 0 #1e477f;
 }
 .key-execute:hover {
   border-color: #214f8e;
-  background: #214f8e;
+  background: #b6a0ff;
 }
 
 details {
@@ -359,7 +359,7 @@ summary { padding: .4rem 1rem; cursor: pointer; }
 }
 .details-body dt { color: var(--numos-text); }
 .details-body dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.details-body button { background: #253041; }
+.details-body button { background: #253041; color: var(--numos-text); }
 
 .sr-only {
   position: absolute;
