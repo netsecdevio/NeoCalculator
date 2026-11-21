@@ -132,11 +132,13 @@ try {
     };
   };
 
-  // Establish the origin with persistence explicitly disabled, then clear
-  // only NumOS's own /numos IDBFS database through the copied reset API.
+  // In this fresh browser context, disabled persistence must reject reset
+  // rather than opening or deleting the shared NumOS database.
   await reloadReady(`${origin}/index.html?persistence=disabled`);
   assert.equal((await persistenceState()).state, "disabled");
-  await page.evaluate(async () => window.numos.resetPersistentStorage());
+  await assert.rejects(
+    page.evaluate(async () => window.numos.resetPersistentStorage()),
+    /no persistent saved data to clear/);
   await page.evaluate(async () => window.numos.requestShutdown());
 
   // First run: hydration precedes C++ main and reports the empty schema.
