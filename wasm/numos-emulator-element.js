@@ -309,6 +309,10 @@ export class NumosEmulatorElement extends HTMLElement {
         details: `Missing: ${missing.join(", ")}`,
       });
       this.#failVisible(error);
+      if (!this.#readySettled) {
+        this.#readySettled = true;
+        this.#readyDeferred.reject(error);
+      }
       throw error;
     }
 
