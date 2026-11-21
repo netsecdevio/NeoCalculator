@@ -653,6 +653,12 @@ export class NumosEmulatorElement extends HTMLElement {
     if (this.#intersectionObserver || ACTIVE_STATES.has(this.#state)) return;
     if (!globalThis.IntersectionObserver) {
       this.#transition("idle");
+      // Keep bootstrap attributes available before this optional lazy-load fallback.
+      setTimeout(() => {
+        if (this.#connected && this.#autostartEnabled() && this.#state === "idle") {
+          this.#ignore(this.start());
+        }
+      }, 0);
       return;
     }
     if (this.#state !== "waiting_for_viewport") {
@@ -1385,6 +1391,6 @@ export class NumosEmulatorElement extends HTMLElement {
   }
 }
 
-if (!customElements.get("numos-emulator")) {
+if (globalThis.customElements && !customElements.get("numos-emulator")) {
   customElements.define("numos-emulator", NumosEmulatorElement);
 }

@@ -519,6 +519,37 @@ try {
     await mobileContext.close();
   }
 
+  // Optional lazy loading must not prevent boot; unsupported registration must
+  // still expose a settled, readable standalone readiness failure.
+  for (const feature of ["customElements", "IntersectionObserver"]) {
+    const edge = await context.newPage();
+    const edgeErrors = [], edgeRequests = [];
+    edge.on("pageerror", error => edgeErrors.push(error.message));
+    edge.on("request", request => edgeRequests.push(request.url()));
+    try {
+      await edge.addInitScript(name => {
+        Object.defineProperty(globalThis, name, { configurable: true, value: undefined });
+      }, feature);
+      await edge.goto(`${server.origin}/index.html?persistence=disabled`);
+      await edge.waitForFunction(() => Boolean(window.numosReady));
+      const result = await edge.evaluate(() => Promise.race([
+        window.numosReady.then(() => "ready", error => error.code),
+        new Promise(resolve => setTimeout(() => resolve("pending"), 15000)),
+      ]));
+      if (feature === "customElements") {
+        assert.equal(result, "UNSUPPORTED_BROWSER");
+        assert.equal(await edge.evaluate(() => window.numos.isReady()), false);
+        assert.match(await edge.locator('[role="alert"]').textContent(), /up-to-date browser/);
+        assert.equal(edgeRequests.some(url => url.endsWith(".wasm")), false);
+      } else {
+        assert.equal(result, "ready");
+        assert.equal(await edge.evaluate(() => window.numos.persistenceState().state), "disabled");
+        await edge.evaluate(() => window.numos.requestShutdown());
+      }
+      assert.deepEqual(edgeErrors, []);
+    } finally { await edge.close(); }
+  }
+
   assert.deepEqual(fatalErrors, [], fatalErrors.join("\n"));
   console.log(JSON.stringify({
     engine: engineName,

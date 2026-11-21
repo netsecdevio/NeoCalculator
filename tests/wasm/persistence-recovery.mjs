@@ -12,8 +12,10 @@ function fixture() {
   let fail = true;
   let held = null;
   let hold = false;
+  let metadataFails = false;
   const module = { IDBFS: { dbs: {} }, FS: {
-    mkdir() {}, mount() {}, unmount() {}, writeFile() {}, readdir: () => [],
+    mkdir() {}, mount() {}, unmount() {},
+    writeFile() { if (metadataFails) throw new Error("metadata write unavailable"); }, readdir: () => [],
     readFile: () => metadata,
     syncfs(populate, done) {
       if (populate) return done();
@@ -24,7 +26,8 @@ function fixture() {
   } };
   const controller = createPersistenceController("test");
   return { controller, module, get writes() { return writeSyncs; },
-    recover() { fail = false; }, hold() { hold = true; },
+    failMetadata() { metadataFails = true; },
+    recover() { fail = false; metadataFails = false; }, hold() { hold = true; },
     finish() { hold = false; held(new Error("storage temporarily unavailable")); } };
 }
 try {
@@ -45,6 +48,21 @@ try {
   assert.equal(first.controller.snapshot().dirty, false);
   await first.controller.dispose();
 
+  const metadataFailure = fixture();
+  await metadataFailure.controller.initialize(metadataFailure.module);
+  metadataFailure.recover(); metadataFailure.failMetadata();
+  metadataFailure.controller.markDirty();
+  let metadataFlush;
+  assert.doesNotThrow(() => { metadataFlush = metadataFailure.controller.flushPersistence(); });
+  await assert.rejects(metadataFlush, /metadata write unavailable/);
+  assert.equal(metadataFailure.controller.snapshot().state, "persistent_error");
+  assert.equal(metadataFailure.controller.snapshot().flushInProgress, false);
+  metadataFailure.recover(); metadataFailure.controller.markDirty();
+  await delay(360);
+  assert.equal(metadataFailure.controller.snapshot().state, "persistent_ready");
+  assert.equal(metadataFailure.controller.snapshot().dirty, false);
+  await metadataFailure.controller.dispose();
+
   for (const action of ["dispose", "resetPersistentStorage"]) {
     const current = fixture();
     await current.controller.initialize(current.module);
@@ -52,6 +70,7 @@ try {
     const flush = current.controller.flushPersistence().catch(() => {});
     current.controller.markDirty(); // New work while this sync is pending.
     const stopping = current.controller[action]();
+    await Promise.resolve(); // Metadata and sync run within the returned promise.
     current.finish();
     await Promise.all([flush, stopping]);
     assert.equal(current.controller.snapshot().pendingTimer, false,
@@ -62,7 +81,7 @@ try {
   await concurrent.controller.initialize(concurrent.module);
   concurrent.hold(); concurrent.controller.markDirty();
   const pending = concurrent.controller.flushPersistence().catch(() => {});
-  concurrent.controller.markDirty(); concurrent.finish();
+  concurrent.controller.markDirty(); await Promise.resolve(); concurrent.finish();
   await pending;
   assert.equal(concurrent.controller.snapshot().pendingTimer, true,
     "an edit made during a failed sync must not be stranded");
