@@ -211,8 +211,8 @@ export function createPersistenceController(buildIdentity, options = {}) {
   }
 
   function scheduleFlush() {
-    if (timer || inFlight || resetSelected ||
-        detail.state !== "persistent_ready") {
+    if (timer || inFlight || resetSelected || disposed ||
+        !["persistent_ready", "persistent_error"].includes(detail.state)) {
       return;
     }
     timer = globalThis.setTimeout(() => {
@@ -352,7 +352,10 @@ export function createPersistenceController(buildIdentity, options = {}) {
       .finally(() => {
         inFlight = null;
         detail.flushInProgress = false;
-        if (detail.dirty && detail.state === "persistent_ready") {
+        // Retry after a new mutation, including one made during a failed sync.
+        // A persistent storage failure alone must not create a retry loop.
+        if (detail.dirty && (detail.state === "persistent_ready" ||
+            dirtyGeneration > targetGeneration)) {
           scheduleFlush();
         }
       });
@@ -400,6 +403,7 @@ export function createPersistenceController(buildIdentity, options = {}) {
   }
 
   async function resetPersistentStorage() {
+    resetSelected = true;
     if (timer) {
       clearTimeout(timer);
       timer = null;
@@ -412,7 +416,6 @@ export function createPersistenceController(buildIdentity, options = {}) {
         // Reset remains an explicit recovery path after a failed flush.
       }
     }
-    resetSelected = true;
     removeTreeContents(ROOT);
     metadata = null;
     detail.dirty = false;
@@ -464,6 +467,7 @@ export function createPersistenceController(buildIdentity, options = {}) {
 
   async function dispose() {
     if (disposed) return;
+    disposed = true;
     if (timer) {
       clearTimeout(timer);
       timer = null;
@@ -481,7 +485,6 @@ export function createPersistenceController(buildIdentity, options = {}) {
       cached.close();
       delete module.IDBFS.dbs[DATABASE_NAME];
     }
-    disposed = true;
     module = null;
   }
 

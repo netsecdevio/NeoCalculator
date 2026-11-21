@@ -64,7 +64,8 @@ C++ paths. The browser controller:
 - uses one 300 ms debounce timer at most;
 - coalesces repeated writes and repeated in-flight flush calls;
 - performs only asynchronous `syncfs(false)` operations;
-- retries only when explicitly flushed again after an error;
+- retries after a new mutation or an explicit flush following an error;
+- does not repeatedly retry a failed flush without new mutations;
 - performs best-effort flushes on `pagehide` and when the document becomes
   hidden.
 
@@ -82,7 +83,8 @@ If IndexedDB/IDBFS is missing, denied, or initial hydration fails, the IDBFS
 mount is removed and `/numos` remains ordinary MEMFS. NumOS still launches and
 all in-session behavior works; `persistenceState()` reports
 `ephemeral_fallback`. A failed later flush reports `persistent_error` without
-stopping the emulator, and a later explicit flush may recover.
+stopping the emulator. A later edit or explicit flush may recover; an edit
+made while the failed flush was in flight also schedules a new attempt.
 
 Changes in `ephemeral_fallback` or `disabled` mode disappear on reload.
 

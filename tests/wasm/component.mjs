@@ -116,6 +116,26 @@ try {
   assert.equal(server.requests.includes("/numos-assets.json"), false,
     "defining the custom element must not fetch the asset manifest");
 
+  // Unsupported engines must settle both readiness promises, not hang hosts.
+  const unsupported = await page.evaluate(async () => {
+    const original = globalThis.WebAssembly;
+    const element = document.createElement("numos-emulator");
+    document.body.append(element);
+    try {
+      globalThis.WebAssembly = undefined;
+      const ready = element.ready.catch(error => error.code);
+      const started = element.start().catch(error => error.code);
+      return await Promise.race([
+        Promise.all([started, ready]),
+        new Promise(resolve => setTimeout(() => resolve(["pending"]), 1000)),
+      ]);
+    } finally {
+      globalThis.WebAssembly = original;
+      element.remove();
+    }
+  });
+  assert.deepEqual(unsupported, ["UNSUPPORTED_BROWSER", "UNSUPPORTED_BROWSER"]);
+
   await createElement({ controls: "hidden" });
   const preStartRequests = [...server.requests];
   await delay(120);

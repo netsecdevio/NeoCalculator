@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+// Import the standalone browser module without changing the repository's Node mode.
+const source = await readFile(new URL("../../wasm/numos-persistence.js", import.meta.url), "utf8");
+const { createPersistenceController } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const originalIndexedDB = globalThis.indexedDB;
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const metadata = JSON.stringify({ schemaVersion: 1,
+  numosStorageFormatVersion: "settings:ST01;variables:VR01;neo:source-v1", buildIdentity: "test" });
+function fixture() {
+  let writeSyncs = 0;
+  let fail = true;
+  let held = null;
+  let hold = false;
+  const module = { IDBFS: { dbs: {} }, FS: {
+    mkdir() {}, mount() {}, unmount() {}, writeFile() {}, readdir: () => [],
+    readFile: () => metadata,
+    syncfs(populate, done) {
+      if (populate) return done();
+      writeSyncs++;
+      if (hold) held = done;
+      else done(fail ? new Error("storage temporarily unavailable") : null);
+    },
+  } };
+  const controller = createPersistenceController("test");
+  return { controller, module, get writes() { return writeSyncs; },
+    recover() { fail = false; }, hold() { hold = true; },
+    finish() { hold = false; held(new Error("storage temporarily unavailable")); } };
+}
+try {
+  globalThis.indexedDB = { deleteDatabase() {
+    const request = {}; queueMicrotask(() => request.onsuccess()); return request;
+  } };
+  const first = fixture();
+  await first.controller.initialize(first.module);
+  first.controller.markDirty();
+  await assert.rejects(first.controller.flushPersistence(), /temporarily unavailable/);
+  await delay(360);
+  assert.equal(first.writes, 1, "a persistent failure must not spin on a timer");
+  first.recover();
+  first.controller.markDirty();
+  await delay(360);
+  assert.equal(first.writes, 2, "a subsequent edit retries automatically");
+  assert.equal(first.controller.snapshot().state, "persistent_ready");
+  assert.equal(first.controller.snapshot().dirty, false);
+  await first.controller.dispose();
+
+  for (const action of ["dispose", "resetPersistentStorage"]) {
+    const current = fixture();
+    await current.controller.initialize(current.module);
+    current.hold(); current.controller.markDirty();
+    const flush = current.controller.flushPersistence().catch(() => {});
+    current.controller.markDirty(); // New work while this sync is pending.
+    const stopping = current.controller[action]();
+    current.finish();
+    await Promise.all([flush, stopping]);
+    assert.equal(current.controller.snapshot().pendingTimer, false,
+      `${action} must prevent the in-flight completion from scheduling work`);
+    await current.controller.dispose();
+  }
+  const concurrent = fixture();
+  await concurrent.controller.initialize(concurrent.module);
+  concurrent.hold(); concurrent.controller.markDirty();
+  const pending = concurrent.controller.flushPersistence().catch(() => {});
+  concurrent.controller.markDirty(); concurrent.finish();
+  await pending;
+  assert.equal(concurrent.controller.snapshot().pendingTimer, true,
+    "an edit made during a failed sync must not be stranded");
+  concurrent.recover(); await delay(360);
+  assert.equal(concurrent.controller.snapshot().state, "persistent_ready");
+  await concurrent.controller.dispose();
+  console.log("Persistence recovery: subsequent edits, in-flight edits, no retry loop, dispose/reset passed");
+} finally {
+  if (originalIndexedDB === undefined) delete globalThis.indexedDB;
+  else globalThis.indexedDB = originalIndexedDB;
+}

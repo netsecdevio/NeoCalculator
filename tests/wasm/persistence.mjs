@@ -283,7 +283,7 @@ try {
   assert.equal((await diagnostics()).storage.angleMode, "deg");
 
   // Inject one flush failure. It is reported as persistent_error, leaves the
-  // emulator running, and a repeated explicit flush recovers.
+  // emulator running, and a subsequent edit saves without an explicit flush.
   phase = "flush-failure";
   await reloadReady(`${origin}/index.html?persistenceTest=flush-failure`);
   await openApp(10, "Settings");
@@ -300,10 +300,13 @@ try {
   });
   assert.match(rejected, /injected IDBFS flush failure/);
   assert.equal((await persistenceState()).state, "persistent_error");
-  await page.evaluate(async () => Promise.all([
-    window.numos.flushPersistence(),
-    window.numos.flushPersistence(),
-  ]));
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() =>
+    window.numos.diagnosticState().storage.angleMode === "deg");
+  await page.waitForFunction(() => {
+    const state = window.numos.persistenceState();
+    return state.state === "persistent_ready" && !state.dirty;
+  });
   assert.equal((await persistenceState()).state, "persistent_ready");
 
   // IndexedDB denial and initial sync failure both launch on ordinary MEMFS.

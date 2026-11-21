@@ -12,6 +12,7 @@ jobs:
           node-version: '24'
       - run: node tests/wasm/math-client-limits.mjs
       - run: node tests/wasm/keycode-catalog.mjs
+      - run: node tests/wasm/persistence-recovery.mjs
       - run: npm ci --prefix tests/wasm --ignore-scripts
       - run: npm audit --prefix tests/wasm --audit-level=moderate
   browser-math:
