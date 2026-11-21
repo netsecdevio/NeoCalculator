@@ -106,8 +106,10 @@ identity updates metadata but never wipes user data. Existing readers already
 treat missing, corrupt, or partially written optional settings, variable and
 Neo files as non-fatal.
 
-`resetPersistentStorage()` recursively clears only the `/numos` mount, syncs
-the empty tree, and deletes only the `/numos` IndexedDB database. Automatic
+In an active persistent session, `resetPersistentStorage()` recursively clears
+only the `/numos` mount, syncs the empty tree, and deletes only the `/numos`
+IndexedDB database. Disabled and ephemeral-fallback sessions reject reset
+without touching IndexedDB; their reset control is hidden. Automatic
 migrations never reset application data.
 
 ## Multi-tab policy

@@ -7,7 +7,7 @@ const originalIndexedDB = globalThis.indexedDB;
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const metadata = JSON.stringify({ schemaVersion: 1,
   numosStorageFormatVersion: "settings:ST01;variables:VR01;neo:source-v1", buildIdentity: "test" });
-function fixture() {
+function fixture(options = {}) {
   let writeSyncs = 0;
   let fail = true;
   let held = null;
@@ -24,16 +24,27 @@ function fixture() {
       else done(fail ? new Error("storage temporarily unavailable") : null);
     },
   } };
-  const controller = createPersistenceController("test");
+  const controller = createPersistenceController("test", options);
   return { controller, module, get writes() { return writeSyncs; },
     failMetadata() { metadataFails = true; },
     recover() { fail = false; metadataFails = false; }, hold() { hold = true; },
     finish() { hold = false; held(new Error("storage temporarily unavailable")); } };
 }
 try {
+  let deletedDatabases = 0;
   globalThis.indexedDB = { deleteDatabase() {
+    deletedDatabases++;
     const request = {}; queueMicrotask(() => request.onsuccess()); return request;
   } };
+  for (const options of [{ disabled: true }, { testMode: "indexeddb-denied" }]) {
+    const ephemeral = fixture(options);
+    await ephemeral.controller.initialize(ephemeral.module);
+    const before = deletedDatabases;
+    await assert.rejects(ephemeral.controller.resetPersistentStorage(), /not active/);
+    assert.equal(deletedDatabases, before, "ephemeral sessions cannot delete a shared database");
+    assert.equal(ephemeral.writes, 0);
+    await ephemeral.controller.dispose();
+  }
   const first = fixture();
   await first.controller.initialize(first.module);
   first.controller.markDirty();

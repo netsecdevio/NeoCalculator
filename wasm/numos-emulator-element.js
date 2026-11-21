@@ -284,10 +284,15 @@ export class NumosEmulatorElement extends HTMLElement {
   set controls(value) { this.setAttribute("controls", value); }
 
   async start() {
+    if (this.#shutdownPromise || this.#state === "shutting_down") {
+      await this.#shutdownPromise;
+      return this.start();
+    }
     if (this.#startPromise) return this.#startPromise;
     if (this.#state === "ready") return this.ready;
-    if (this.#state === "shutting_down" || this.#state === "flushing") {
-      await this.#shutdownPromise;
+    if (this.#state === "flushing") {
+      await this.flushPersistence();
+      return this.start();
     }
     if (this.#state === "stopped" || this.#state === "error") this.#renewReady();
 
@@ -630,6 +635,10 @@ export class NumosEmulatorElement extends HTMLElement {
   }
 
   async resetPersistentStorage() {
+    if (this.persistenceState().mode !== "persistent") {
+      throw new NumosEmulatorError("PERSISTENCE_UNAVAILABLE",
+        "This session has no persistent saved data to clear.");
+    }
     if (!globalThis.confirm(
       "Clear only NumOS saved settings, variables, and NeoLanguage files? " +
       "The emulator will restart with a fresh in-memory runtime.")) {
@@ -1223,6 +1232,9 @@ export class NumosEmulatorElement extends HTMLElement {
     const overlayStart = this.#shadow.querySelector('[data-action="overlay-start"]');
     const shutdown = this.#shadow.querySelector('[data-action="shutdown"]');
     const restart = this.#shadow.querySelector('[data-action="restart"]');
+    const clearStorage = this.#shadow.querySelector('[data-action="clear-storage"]');
+    clearStorage.hidden = this.persistenceState().mode !== "persistent";
+    clearStorage.disabled = this.#state !== "ready";
     const power = this.#shadow.querySelector('[data-action="power"]');
     const overlay = this.#shadow.querySelector(".overlay");
     const title = overlay.querySelector("h2");
@@ -1283,6 +1295,8 @@ export class NumosEmulatorElement extends HTMLElement {
   #persistenceChanged(token, state) {
     if (token !== this.#generation && this.#state !== "shutting_down") return;
     const safe = copy(state);
+    this.#shadow.querySelector('[data-action="clear-storage"]').hidden =
+      safe.mode !== "persistent";
     const dot = this.#shadow.querySelector(".dot");
     const label = this.#shadow.querySelector("[data-persistence]");
     dot.className = "dot";

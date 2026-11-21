@@ -404,6 +404,10 @@ export function createPersistenceController(buildIdentity, options = {}) {
   }
 
   async function resetPersistentStorage() {
+    if (configuration.disabled || disposed || !mounted || resetSelected ||
+        detail.mode !== "persistent") {
+      throw new Error("Persistent storage is not active in this session");
+    }
     resetSelected = true;
     if (timer) {
       clearTimeout(timer);
