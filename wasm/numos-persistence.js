@@ -320,17 +320,18 @@ export function createPersistenceController(buildIdentity, options = {}) {
     const started = performance.now();
     detail.flushInProgress = true;
     transition("persistent_syncing");
-    if (metadataWritable) {
-      writeMetadata({
-        ...(metadata || {}),
-        schemaVersion: SCHEMA_VERSION,
-        numosStorageFormatVersion: STORAGE_FORMAT_VERSION,
-        buildIdentity,
-        lastSuccessfulSync: new Date().toISOString(),
-      });
-    }
-
-    inFlight = rawSync(false)
+    inFlight = Promise.resolve().then(() => {
+      if (metadataWritable) {
+        writeMetadata({
+          ...(metadata || {}),
+          schemaVersion: SCHEMA_VERSION,
+          numosStorageFormatVersion: STORAGE_FORMAT_VERSION,
+          buildIdentity,
+          lastSuccessfulSync: new Date().toISOString(),
+        });
+      }
+      return rawSync(false);
+    })
       .then(() => {
         syncedGeneration = Math.max(syncedGeneration, targetGeneration);
         detail.dirty = dirtyGeneration > syncedGeneration;
